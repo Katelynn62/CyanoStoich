@@ -1,0 +1,993 @@
+---
+title: "Descriptive Statistics"
+author: "Katelynn"
+date: "2024-10-14"
+output: html_document
+---
+
+# Descriptive Statistics for Manuscript Results
+
+
+### Water Temperature
+
+```{r}
+SA_Temp_Stats1 <- SA_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  mutate(Site = "SA") %>%
+  filter(Depth == 1.0) %>%
+  group_by(Depth, datetime, Site) %>%
+  summarize(Temp_C = mean(Temp_C))
+
+
+MB_Temp_Stats1 <- MB_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  mutate(Site = "MB") %>%
+  filter(Depth == 1.0) %>%
+  group_by(Depth, datetime, Site) %>%
+  rename(Depth = Depth) %>%
+  summarize(Temp_C = mean(Temp_C))
+
+Temp_Stats_1 <- inner_join(SA_Temp_Stats1, MB_Temp_Stats1, by="datetime") %>%
+  na.omit()
+
+SA_Stats_1 <- Temp_Stats_1 %>%
+  select(datetime, Site.x, Temp_C.x) %>%
+  rename(Site = Site.x, 
+         Temp_C = Temp_C.x)
+
+MB_Stats_1 <- Temp_Stats_1 %>%
+  select(datetime, Site.y, Temp_C.y) %>%
+  rename(Site = Site.y, 
+         Temp_C = Temp_C.y)
+
+Temp_Stats_1 <- bind_rows(SA_Stats_1, MB_Stats_1) %>%
+  na.omit()
+
+
+### Normality: 
+
+shapiro.test(SA_Stats_1$Temp_C)
+
+shapiro.test(MB_Stats_1$Temp_C)
+
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(Temp_C ~ Site,
+                    data = Temp_Stats_1,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+
+
+
+Temp_Stats_1 %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(Temp_C),
+            sd = sd(Temp_C))
+
+### Bottom Water Temperatures
+
+SA_Temp_StatsBot <- SA_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  mutate(Site = "SA") %>%
+  filter(Depth == 4.5) %>%
+  group_by(Depth, datetime, Site) %>%
+  summarize(Temp_C = mean(Temp_C))
+
+
+MB_Temp_StatsBot<- MB_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  mutate(Site = "MB") %>%
+  filter(Depth == 2.5) %>%
+  group_by(Depth, datetime, Site) %>%
+  rename(Depth = Depth) %>%
+  summarize(Temp_C = mean(Temp_C))
+
+Temp_Stats_Bot <- inner_join(SA_Temp_StatsBot, MB_Temp_StatsBot, by="datetime") %>%
+  na.omit()
+
+SA_Stats_Bot <- Temp_Stats_Bot %>%
+  select(datetime, Site.x, Temp_C.x) %>%
+  rename(Site = Site.x, 
+         Temp_C = Temp_C.x)
+
+MB_Stats_Bot <- Temp_Stats_Bot %>%
+  select(datetime, Site.y, Temp_C.y) %>%
+  rename(Site = Site.y, 
+         Temp_C = Temp_C.y)
+
+Temp_Stats_Bot <- bind_rows(SA_Stats_Bot, MB_Stats_Bot) %>%
+  na.omit()
+
+### Normality: 
+
+shapiro.test(SA_Stats_Bot$Temp_C)
+
+shapiro.test(MB_Stats_Bot$Temp_C)
+
+
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(Temp_C ~ Site,
+                    data = Temp_Stats_Bot,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+4.035e-11*6
+
+### Averages and sd
+
+Temp_Stats_Bot %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(Temp_C),
+            sd = sd(Temp_C))
+
+
+
+### Difference in water column temperatures. 
+
+SA_Temp_Stats_Diff <- SA_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  mutate(Site = "SA") %>%
+  filter(Depth == 1.0 | Depth == 4.5) %>%
+  group_by(Depth, datetime, Site) %>%
+  summarize(Temp_C = mean(Temp_C)) %>%
+  pivot_wider(names_from = Depth, values_from = Temp_C) %>%
+  mutate(Diff= `4.5`-`1`) %>%
+  select(datetime, Diff, Site)
+
+
+MB_Temp_Stats_Diff <- MB_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year) %>%
+  mutate(Site = "MB") %>%
+  filter(Depth == 1.0 | Depth == 2.5) %>%
+  group_by(Depth, datetime, Site) %>%
+  rename(Depth = Depth) %>%
+  summarize(Temp_C = mean(Temp_C)) %>%
+  pivot_wider(names_from = Depth, values_from = Temp_C)  %>%
+  mutate(Diff = `2.5`-`1`) %>%
+  select(datetime, Diff, Site)
+
+
+Temp_Stats_Diff <- inner_join(SA_Temp_Stats_Diff, MB_Temp_Stats_Diff, by="datetime") 
+
+SA_Stats_Diff <- Temp_Stats_Diff %>%
+  select(datetime, Site.x, Diff.x) %>%
+  rename(Site = Site.x, 
+         Diff = Diff.x)
+
+MB_Stats_Diff <- Temp_Stats_Diff %>%
+  select(datetime, Site.y, Diff.y) %>%
+  rename(Site = Site.y, 
+         Diff = Diff.y)
+
+Temp_Stats_Diff <- bind_rows(SA_Temp_Stats_Diff, MB_Temp_Stats_Diff) %>%
+  na.omit()
+
+
+### Normality: 
+
+shapiro.test(SA_Stats_Diff$Diff)
+
+shapiro.test(MB_Stats_Diff$Diff)
+
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(Diff ~ Site,
+                    data = Temp_Stats_Diff,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+2.2e-16*6
+Temp_Stats_Diff %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(Diff),
+            sd = sd(Diff))
+
+```
+
+### Wind Speed
+
+```{r}
+SA_Wind_Stats <- SA_Met %>%
+  select(Datetime, Wind_Speed_m.s, Month, Year) %>%
+  mutate(Day = day(Datetime)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  mutate(Site = "SA") %>%
+  rename(Wind_Speed = Wind_Speed_m.s) %>%
+  filter(Month>=6 & Month < 11) %>%
+  mutate(Group = if_else(Date < as.Date("2021-09-30"), 1, 0),
+         Group = if_else(Date >= as.Date("2021-10-11"), 2, Group)) %>%
+  filter(Group != 0) %>%
+  select(-Group, -Date, -Month, -Day, -Year)
+
+MB_Wind_Stats <- MB_Met %>%
+  select(Datetime, Wind_Speed, Month) %>%
+  mutate(Site = "MB") %>%
+  filter(Month>=6 & Month < 11) %>%
+  select(-Month)
+
+Wind_Stats <- bind_rows(MB_Wind_Stats, SA_Wind_Stats) %>%
+  na.omit()
+
+shapiro.test(MB_Wind_Stats$Wind_Speed)
+
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(Wind_Speed ~ Site,
+                    data = Wind_Stats,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+2.36e-05*6
+
+Wind_Stats %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(Wind_Speed),
+            sd = sd(Wind_Speed))
+
+
+
+
+```
+## Bottom DO
+
+```{r}
+
+SA_DO_Stats <- SA_Profiler %>%
+  filter(Depth == 4.5) %>%
+  select(datetime, ODOmgL) %>%
+  mutate(Site = "SA") 
+
+MB_DO_Stats <- MB_Profiler %>%
+  filter(Depth == 2.5) %>%
+  select(datetime, ODOmgL) %>%
+  mutate(Site = "MB") 
+
+
+DO_Stats <- inner_join(SA_DO_Stats, MB_DO_Stats, by="datetime") %>%
+  na.omit()
+
+SA_DO_Stats <- DO_Stats %>%
+  select(datetime, Site.x, ODOmgL.x) %>%
+  rename(Site = Site.x, 
+         DO = ODOmgL.x)
+
+MB_DO_Stats <- DO_Stats %>%
+  select(datetime, Site.y, ODOmgL.y) %>%
+  rename(Site = Site.y, 
+         DO = ODOmgL.y)
+
+DO_Stats <- bind_rows(SA_DO_Stats, MB_DO_Stats) %>%
+  na.omit()
+
+
+shapiro.test(MB_DO_Stats$DO)
+shapiro.test(SA_DO_Stats$DO)
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(DO ~ Site,
+                    data = DO_Stats,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+2.2e-16*7
+
+DO_Stats %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(DO),
+            sd = sd(DO),
+            max = max(DO),
+            min = min(DO))
+
+
+```
+
+
+### Schmidt Stability
+
+```{r}
+
+SA_SS_Stats <- SA_Schmidt %>%
+  select(datetime, SS) %>%
+  mutate(Site = "SA") %>%
+  mutate(SS = if_else(SS < 0, 0, SS))
+
+MB_SS_Stats <- MB_Schmidt %>%
+  select(datetime, SS) %>%
+  mutate(Site = "MB") %>%
+  mutate(SS = if_else(SS < 0, 0, SS))
+
+
+SS_Stats <- inner_join(SA_SS_Stats, MB_SS_Stats, by="datetime") %>%
+  na.omit()
+
+SA_SS_Stats <- SS_Stats %>%
+  select(datetime, Site.x, SS.x) %>%
+  rename(Site = Site.x, 
+         SS = SS.x)
+
+MB_SS_Stats <- SS_Stats %>%
+  select(datetime, Site.y, SS.y) %>%
+  rename(Site = Site.y, 
+         SS = SS.y)
+
+SS_Stats <- bind_rows(SA_SS_Stats, MB_SS_Stats) %>%
+  na.omit()
+
+
+shapiro.test(MB_SS_Stats$SS)
+shapiro.test(SA_SS_Stats$SS)
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(SS ~ Site,
+                    data = SS_Stats,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+2.2e-16*6
+
+SS_Stats %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(SS),
+            sd = sd(SS),
+            max = max(SS))
+
+```
+
+### Stream Flow
+
+```{r}
+
+SA_SF_Stats <- Precip_Data_SA  %>%
+  select(Date, Sum_SF) %>%
+  mutate(Site = "SA")
+
+MB_SF_Stats <- Precip_Data_MB  %>%
+  select(Date, Sum_SF) %>%
+  mutate(Site = "MB")
+
+SF_Stats <- bind_rows(SA_SF_Stats, MB_SF_Stats) %>%
+  na.omit()
+
+shapiro.test(SA_SF_Stats$Sum_SF)
+shapiro.test(MB_SF_Stats$Sum_SF)
+
+# Paired Samples Wilcoxon Test
+result = wilcox.test(Sum_SF ~ Site,
+                    data = SF_Stats,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+2.2e-16*4
+
+SF_Stats %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(Sum_SF),
+            sd = sd(Sum_SF),
+            max = max(Sum_SF))
+
+```
+
+## Bloom Stages Statistics:
+
+Using the dates determined from hierarchal clustering below, we are going to create some statistics for the results section regarding trends in physical properties of the lake across bloom stages. 
+
+Missisquoi Bay Dates:
+
+2021-06-01 - 2021-08-07 pre bloom
+2021-08-07 - 2021-08-12: Exponential Phase 1
+2021-08-12 - 2021-08-20 : Peak Growth 1
+2021-08-20 - 2021-08-24: Bloom Collapse 1
+2021-08-24 - 2021-09-03 Exponential growth 2
+2021-09-03 - 2021-09-15 Peak Growth 2
+2021-09-15 - 2021-09-27 Bloom Collpase 2
+2021-09-27 - 2021-10-31: Post-Bloom
+
+
+
+```{r}
+
+MB_Temp1_Stage <- MB_Temp_Stats1 %>%
+  mutate(Stage = if_else(datetime <= as_datetime("2021-08-07 00:00:01"), "Pre-Bloom", "None"),
+         Stage = if_else(datetime > as_datetime("2021-08-07 00:00:01") & datetime <= as_datetime("2021-08-12 00:00:01"), "Exponential Phase 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-12 00:00:01") & datetime <= as_datetime("2021-08-20 00:00:01"), "Peak Growth 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-20 00:00:01") & datetime <= as_datetime("2021-08-24 00:00:01"), "Bloom Collapse 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-24 00:00:01") & datetime <= as_datetime("2021-09-03 00:00:01"), "Exponential Phase 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-03 00:00:01") & datetime <= as_datetime("2021-09-15 00:00:01"), "Peak Growth 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-15 00:00:01") & datetime <= as_datetime("2021-09-27 00:00:01"), "Bloom Collapse 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-27 00:00:01"), "Post-Bloom", Stage)) 
+
+MB_Temp1_Stage <- MB_Temp1_Stage %>%
+  na.omit()
+
+MB_Temp1_Stage <- MB_Temp1_Stage %>%
+  mutate(Temp_log = log(Temp_C))
+
+shapiro.test(MB_Temp1_Stage$Temp_log)
+
+test <- kruskal.test(Temp_C~Stage, data=MB_Temp1_Stage)
+
+print(test)
+
+test <- dunn.test(MB_Temp1_Stage$Temp_C, MB_Temp1_Stage$Stage, method="bonferroni")
+print(test)
+
+MB_Temp1_Stage %>%  
+  group_by(Stage) %>%
+  summarise(Avg = mean(Temp_C),
+            sd = sd(Temp_C),
+            max = max(Temp_C))
+  
+###
+
+MB_Schmidt_Stage <-  MB_Schmidt %>% 
+  mutate(Stage = if_else(datetime <= as_datetime("2021-08-07 00:00:01"), "Pre-Bloom", "None"),
+         Stage = if_else(datetime > as_datetime("2021-08-07 00:00:01") & datetime <= as_datetime("2021-08-12 00:00:01"), "Exponential Phase 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-12 00:00:01") & datetime <= as_datetime("2021-08-20 00:00:01"), "Peak Growth 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-20 00:00:01") & datetime <= as_datetime("2021-08-24 00:00:01"), "Bloom Collapse 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-24 00:00:01") & datetime <= as_datetime("2021-09-03 00:00:01"), "Exponential Phase 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-03 00:00:01") & datetime <= as_datetime("2021-09-15 00:00:01"), "Peak Growth 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-15 00:00:01") & datetime <= as_datetime("2021-09-27 00:00:01"), "Bloom Collapse 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-27 00:00:01"), "Post-Bloom", Stage)) 
+
+MB_Schmidt_Stage <- MB_Schmidt_Stage %>%
+  mutate(SS = if_else(SS < 0, 0, SS)) %>%
+  na.omit()
+
+shapiro.test(MB_Schmidt_Stage$SS)
+
+test <- kruskal.test(SS~Stage, data=MB_Schmidt_Stage)
+
+dunn.test(MB_Schmidt_Stage$SS, MB_Schmidt_Stage$Stage, method="bonferroni")
+
+
+MB_Schmidt_Stage %>%  
+  group_by(Stage) %>%
+  summarise(Avg = mean(SS),
+            sd = sd(SS),
+            max = max(SS))
+  
+
+```
+```{r}
+###
+
+MB_O2_Stage <-  MB_Profiler %>%
+  filter(Depth == 2.5) %>%
+  select(datetime, ODOmgL) %>%
+  group_by(datetime) %>%
+  summarize(ODOmgL = mean(ODOmgL)) %>%
+  mutate(Stage = if_else(datetime <= as_datetime("2021-08-07 00:00:01"), "Pre-Bloom", "None"),
+         Stage = if_else(datetime > as_datetime("2021-08-07 00:00:01") & datetime <= as_datetime("2021-08-12 00:00:01"), "Exponential Phase 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-12 00:00:01") & datetime <= as_datetime("2021-08-20 00:00:01"), "Peak Growth 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-20 00:00:01") & datetime <= as_datetime("2021-08-24 00:00:01"), "Bloom Collapse 1", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-24 00:00:01") & datetime <= as_datetime("2021-09-03 00:00:01"), "Exponential Phase 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-03 00:00:01") & datetime <= as_datetime("2021-09-15 00:00:01"), "Peak Growth 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-15 00:00:01") & datetime <= as_datetime("2021-09-27 00:00:01"), "Bloom Collapse 2", Stage),
+         Stage = if_else(datetime > as_datetime("2021-09-27 00:00:01"), "Post-Bloom", Stage)) 
+
+shapiro.test(MB_O2_Stage$ODOmgL)
+
+test <- kruskal.test(ODOmgL~Stage, data=MB_O2_Stage)
+
+library(dunn.test)
+
+dunn.test(MB_O2_Stage$ODOmgL, MB_O2_Stage$Stage, method="bonferroni")
+
+
+MB_O2_Stage %>%  
+  group_by(Stage) %>%
+  summarise(Avg = mean(ODOmgL),
+            sd = sd(ODOmgL),
+            max = max(ODOmgL),
+            min = min(ODOmgL))
+  
+  
+
+```
+
+
+
+St. Albans Bay 
+
+St. Albans Dates: 
+
+2021-06-01 - 2021-07-11: Pre-Bloom
+2021-07-11 - 2021-07-15: Pre-Bloom, Bloom Collapse
+2021-07-15 - 2021-07-27: Exponential Growth
+2021-07-27 - 2021-08-16: Peak Growth
+2021-08-16 - 2021-08-27: Bloom Collapse
+2021-08-27 - 2021-10-31: Post-bloom
+
+```{r}
+
+SA_Temp1_Stage <- SA_Temp_Stats1 %>%
+  mutate(Stage = if_else(datetime <= as_datetime("2021-07-15 00:00:01"), "Pre-Bloom", "None"),
+         Stage = if_else(datetime > as_datetime("2021-07-15 00:00:01") & datetime <= as_datetime("2021-07-27 00:00:01"), "Exponential Phase", Stage),
+         Stage = if_else(datetime > as_datetime("2021-07-27 00:00:01") & datetime <= as_datetime("2021-08-16 00:00:01"), "Peak Growth", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-16 00:00:01") & datetime <= as_datetime("2021-08-27 00:00:01"), "Bloom Collapse ", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-27 00:00:01"), "Post-Bloom", Stage)) 
+
+SA_Temp1_Stage <- SA_Temp1_Stage %>%
+  na.omit() %>%
+  mutate(Temp_C_S = scale(Temp_C))
+
+
+test <- kruskal.test(Temp_C~Stage, data=SA_Temp1_Stage)
+
+print(test)
+
+dunn.test(SA_Temp1_Stage$Temp_C, SA_Temp1_Stage$Stage, method="bonferroni")
+
+
+SA_Temp1_Stage %>%  
+  group_by(Stage) %>%
+  summarise(Avg = mean(Temp_C),
+            sd = sd(Temp_C),
+            max = max(Temp_C))
+  
+###
+
+SA_Schmidt_Stage <-  SA_Schmidt %>% 
+  mutate(Stage = if_else(datetime <= as_datetime("2021-07-15 00:00:01"), "Pre-Bloom", "None"),
+         Stage = if_else(datetime > as_datetime("2021-07-15 00:00:01") & datetime <= as_datetime("2021-07-27 00:00:01"), "Exponential Phase", Stage),
+         Stage = if_else(datetime > as_datetime("2021-07-27 00:00:01") & datetime <= as_datetime("2021-08-16 00:00:01"), "Peak Growth", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-16 00:00:01") & datetime <= as_datetime("2021-08-27 00:00:01"), "Bloom Collapse ", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-27 00:00:01"), "Post-Bloom", Stage)) 
+
+SA_Schmidt_Stage <- SA_Schmidt_Stage %>%
+  mutate(SS = if_else(SS < 0, 0, SS)) %>%
+  na.omit()
+
+test <- kruskal.test(SS~Stage, data=SA_Schmidt_Stage)
+
+print(test)
+
+dunn.test(SA_Schmidt_Stage$SS, SA_Schmidt_Stage$Stage, method="bonferroni")
+
+
+
+SA_Schmidt_Stage %>%  
+  group_by(Stage) %>%
+  summarise(Avg = mean(SS),
+            sd = sd(SS),
+            max = max(SS))
+  
+
+```
+
+```{r}
+###
+
+SA_O2_Stage <-  SA_Profiler %>%
+  filter(Depth == 4.5) %>%
+  select(datetime, ODOmgL) %>%
+  group_by(datetime) %>%
+  summarize(ODOmgL = mean(ODOmgL)) %>%
+  mutate(Stage = if_else(datetime <= as_datetime("2021-07-15 00:00:01"), "Pre-Bloom", "None"),
+         Stage = if_else(datetime > as_datetime("2021-07-15 00:00:01") & datetime <= as_datetime("2021-07-27 00:00:01"), "Exponential Phase", Stage),
+         Stage = if_else(datetime > as_datetime("2021-07-27 00:00:01") & datetime <= as_datetime("2021-08-16 00:00:01"), "Peak Growth", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-16 00:00:01") & datetime <= as_datetime("2021-08-27 00:00:01"), "Bloom Collapse ", Stage),
+         Stage = if_else(datetime > as_datetime("2021-08-27 00:00:01"), "Post-Bloom", Stage)) 
+
+shapiro.test(SA_O2_Stage$ODOmgL)
+
+test <- kruskal.test(ODOmgL~Stage, data=SA_O2_Stage)
+
+library(dunn.test)
+
+dunn.test(SA_O2_Stage$ODOmgL, SA_O2_Stage$Stage, method="bonferroni")
+
+
+SA_O2_Stage %>%  
+  group_by(Stage) %>%
+  summarise(Avg = mean(ODOmgL),
+            sd = sd(ODOmgL),
+            max = max(ODOmgL),
+            min = min(ODOmgL))
+  
+  
+
+```
+### Nutrients
+
+# Phosphorus
+
+```{r}
+SA_P_Stats_S <- SA_P %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Water TP - 0.5m")
+
+MB_P_Stats_S <- MB_P %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Water TP - 0.5m")
+
+
+P_Stats_S <- rbind(SA_P_Stats_S, MB_P_Stats_S) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TP_ugL ~ Site,
+                    data = P_Stats_S,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+P_Stats_S %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TP_ugL),
+            sd = sd(TP_ugL),
+            max = max(TP_ugL))
+
+
+
+SA_P_Stats_B <- SA_P %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Water TP - 4.5m")
+
+MB_P_Stats_B <- MB_P %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Water TP - 2.5m")
+
+
+P_Stats_B <- rbind(SA_P_Stats_B, MB_P_Stats_B) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TP_ugL ~ Site,
+                    data = P_Stats_B,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+P_Stats_B %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TP_ugL),
+            sd = sd(TP_ugL),
+            max = max(TP_ugL))
+
+#####
+
+SA_P_Stats_I <- SA_P %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Seston TP - IWC")
+
+MB_P_Stats_I <- MB_P %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Seston TP - IWC")
+
+
+P_Stats_I <- rbind(SA_P_Stats_I, MB_P_Stats_I) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TP_ugL ~ Site,
+                    data = P_Stats_I,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+P_Stats_I %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TP_ugL),
+            sd = sd(TP_ugL),
+            max = max(TP_ugL))
+```
+# Nitrogen
+
+```{r}
+SA_N_Stats_S <- SA_N %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Water TN - 0.5m")
+
+MB_N_Stats_S <- MB_N %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Water TN - 0.5m")
+
+
+N_Stats_S <- rbind(SA_N_Stats_S, MB_N_Stats_S) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TN_mgL ~ Site,
+                    data = N_Stats_S,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+N_Stats_S %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TN_mgL),
+            sd = sd(TN_mgL),
+            max = max(TN_mgL))
+
+
+
+SA_N_Stats_B <- SA_N %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Water TN - 4.5m")
+
+MB_N_Stats_B <- MB_N %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Water TN - 2.5m")
+
+
+N_Stats_B <- rbind(SA_N_Stats_B, MB_N_Stats_B) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TN_mgL ~ Site,
+                    data = N_Stats_B,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+N_Stats_B %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TN_mgL),
+            sd = sd(TN_mgL),
+            max = max(TN_mgL))
+
+#####
+
+SA_N_Stats_I <- SA_N %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Seston TN - IWC")
+
+MB_N_Stats_I <- MB_N %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Seston TN - IWC")
+
+
+N_Stats_I <- rbind(SA_N_Stats_I, MB_N_Stats_I) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TN_mgL ~ Site,
+                    data = N_Stats_I,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+N_Stats_I %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TN_mgL),
+            sd = sd(TN_mgL),
+            max = max(TN_mgL))
+
+#####
+
+SA_DN_Stats_I <- SA_N %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Water TDN - IWC")
+
+MB_DN_Stats_I <- MB_N %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Water TDN - IWC")
+
+
+DN_Stats_I <- rbind(SA_DN_Stats_I, MB_DN_Stats_I) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(TN_mgL ~ Site,
+                    data = DN_Stats_I,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+DN_Stats_I %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(TN_mgL),
+            sd = sd(TN_mgL),
+            max = max(TN_mgL))
+```
+
+# Carbon
+
+```{r}
+SA_C_Stats <- SA_C %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Water DOC - IWC")
+
+MB_C_Stats <- MB_C %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Water DOC - IWC")
+
+
+
+C_Stats <- rbind(SA_C_Stats, MB_C_Stats) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(C_mgL ~ Site,
+                    data = C_Stats,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+C_Stats %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(C_mgL),
+            sd = sd(C_mgL),
+            max = max(C_mgL))
+
+
+
+SA_C_Stats_S <- SA_C %>%
+  mutate(Site = "SA") %>%
+  filter(Location == "Seston C - IWC")
+
+MB_C_Stats_S <- MB_C %>%
+  mutate(Site = "MB") %>%
+  filter(Location == "Seston C - IWC")
+
+
+
+C_Stats_S <- rbind(SA_C_Stats_S, MB_C_Stats_S) %>%
+  na.omit()
+
+# Paired Samples Wilcoxon Test
+result = t.test(C_mgL ~ Site,
+                    data = C_Stats_S,
+                    paired = FALSE,
+                    alternative = "two.sided")
+
+# Printing the results
+print(result)
+
+C_Stats_S %>%
+  group_by(Site) %>%
+  summarise(Avg = mean(C_mgL),
+            sd = sd(C_mgL),
+            max = max(C_mgL))
+
+
+```
+
+## Dissolved Nutrient Statistics
+
+I need to add some statistics into the results section to compare the pre-bloom levels of DIN and PO4 between the bays to support my claim that the dissolved organic nitrogen is the important metric in determining bloom severity between these two systems. 
+
+```{r}
+
+DissNut_Stat <- DissNut %>%
+  group_by(date, site) %>%
+  summarise(DIN = mean(DIN),
+            PO4 = mean(PO4)) %>%
+  mutate(Stage = if_else(date <= as_date("2021-07-15") & site == "STA Inner", "Pre-Bloom", "None"),
+         Stage = if_else(date > as_date("2021-07-15") & date <= as_date("2021-07-27") & site == "STA Inner", "Exponential Phase", Stage),
+         Stage = if_else(date > as_date("2021-07-27") & date <= as_date("2021-08-16") & site == "STA Inner", "Peak Growth", Stage),
+         Stage = if_else(date > as_date("2021-08-16") & date <= as_date("2021-08-27") & site == "STA Inner", "Bloom Collapse ", Stage),
+         Stage = if_else(date > as_date("2021-08-27") & site == "STA Inner", "Post-Bloom", Stage)) %>%
+  mutate(Stage = if_else(date <= as_date("2021-08-07") & site == "Miss Bay", "Pre-Bloom", Stage),
+         Stage = if_else(date > as_date("2021-08-07") & date <= as_date("2021-08-12") & site == "Miss Bay", "Exponential Phase 1", Stage),
+         Stage = if_else(date > as_date("2021-08-12") & date <= as_date("2021-08-20") & site == "Miss Bay", "Peak Growth 1", Stage),
+         Stage = if_else(date > as_date("2021-08-20") & date <= as_date("2021-08-24") & site == "Miss Bay", "Bloom Collapse 1", Stage),
+         Stage = if_else(date > as_date("2021-08-24") & date <= as_date("2021-09-03") & site == "Miss Bay", "Exponential Phase 2", Stage),
+         Stage = if_else(date > as_date("2021-09-03") & date <= as_date("2021-09-15") & site == "Miss Bay", "Peak Growth 2", Stage),
+         Stage = if_else(date > as_date("2021-09-15") & date <= as_date("2021-09-27") & site == "Miss Bay", "Bloom Collapse 2", Stage),
+         Stage = if_else(date > as_date("2021-09-27") & site == "Miss Bay", "Post-Bloom", Stage)) 
+
+
+
+DissNut_Stat%>%  
+  group_by(Stage, site) %>%
+  summarise(Avg = mean(DIN),
+            sd = sd(DIN),
+            max = max(DIN))
+
+
+DissNut_Stat%>%  
+  group_by(Stage, site) %>%
+  summarise(Avg = mean(PO4),
+            sd = sd(PO4),
+            max = max(PO4))
+
+
+## 6/20-6/23 Dissolved nutrient data: 
+
+
+```
+
+##### Toxin T - Tests
+
+```{r}
+
+Anatoxin_summ <- Toxins %>%
+  filter(Anatoxin > 0) %>%
+  group_by(Station) %>%
+  summarize(avg_ana = mean(Anatoxin),
+            se_ana = std.error(Anatoxin),
+            n_ana = n())
+
+
+Microcystin_summ <- Toxins %>%
+  filter(Microcystin > 0) %>%
+  group_by(Station) %>%
+  summarize(avg_mc = mean(Microcystin),
+            se_mc = std.error(Microcystin),
+            n_mc = n())
+
+
+## Toxins T-test
+
+Toxins %>%
+  filter(Station == "MB") %>%
+  ggplot(aes(x=Microcystin))+
+  geom_histogram()
+
+Toxins %>%
+  filter(Microcystin > 0) %>%
+  ggplot(aes(x=Station, y=Microcystin, fill=Station, group=Station))+
+  geom_boxplot()
+
+Toxins %>%
+  filter(Anatoxin > 0) %>%
+  ggplot(aes(x=Station, y=Anatoxin, fill=Station, group=Station))+
+  geom_boxplot()
+
+### Two Sample T-Test
+MC_TTest <- Toxins %>%
+  filter(Microcystin > 0)
+
+ATX_TTest <- Toxins %>%
+  filter(Anatoxin > 0)
+
+t.test(Microcystin ~ Station, data=MC_TTest)
+
+t.test(Anatoxin ~ Station, data=ATX_TTest)
+
+
+
+# Independent T-Test
+
+SA_Toxins <- Toxins %>%
+  filter(Station == "SA") %>%
+  pivot_longer(cols=c(Microcystin, Anatoxin), names_to="Toxin", 
+               values_to = "Concentration") %>%
+  filter(Concentration > 0)
+
+MB_Toxins <- Toxins %>%
+  filter(Station == "MB") %>%
+  pivot_longer(cols=c(Microcystin, Anatoxin), names_to="Toxin", 
+               values_to = "Concentration") %>%
+  filter(Concentration > 0)
+
+t.test(Concentration ~ Toxin, data=MB_Toxins)
+
+```
+

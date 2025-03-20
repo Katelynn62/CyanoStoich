@@ -1,0 +1,190 @@
+---
+title: "Cyano Stoichiometry Data Analysis"
+author: "Katelynn"
+date: "2024-10-14"
+output: html_document
+---
+
+# Load Libraries
+
+```{r}
+
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(ggpubr)
+require(grid) 
+library(strucchange)
+library(broom)
+library(patchwork)
+library(plotrix)
+library(rLakeAnalyzer)
+
+```
+
+# Load Data
+
+```{r}
+
+Profiler_MB <- read_csv("./Clean Data/MB_Profiler_2021_Clean.csv") %>%
+  mutate(Station = "MB") %>%
+  select(-fDOM_RFU)%>%
+  mutate(Date = make_date(Year, Month, Day))
+
+
+Profiler_SA <- read_csv("./Clean Data/SA_Profiler_2021_Clean.csv") %>%
+  mutate(Station = "SA") %>%
+  select(-SpCond) %>%
+  mutate(Date = make_date(Year, Month, Day))
+
+
+Profiler_PC <- rbind(Profiler_MB, Profiler_SA) %>%
+  select(datetime, Date, Month, Day, Year, PC_RFU, Depth, Station, Remove)
+
+
+### DOC and DIN from the Integrated water sample.
+
+Water_CN <- read_xlsx("./Raw Data/LakeChampWater_DOC_TDN_2021.xlsx") %>%
+  mutate(Water_DOC_uML = `DOC (uM/L)`, 
+         Water_TDN_uML = `TDN (uM/L)`,
+         Water_DOC_mgL = `DOC (mg/L)`,
+         Water_TDN_mgL = `TDN (mg/L)`,
+         Water_DOC_uML = `DOC (uM/L)`,
+         Water_CN = `C:N`,
+         Date = date, 
+         Station = site,
+         Location = "IWC") %>%
+  select(Station, Date, Water_DOC_uML, Water_DOC_mgL, Water_TDN_uML, 
+         Water_TDN_mgL, Water_CN, Location) %>%
+  filter(Water_DOC_mgL < 8)
+
+Water_TNTP <- read_csv("./Raw Data/LG21_Summer_TN-TP_BREE_Clean.csv") %>%
+  mutate(Station = if_else(Site == "Miss Bay", "MB", "SA"),
+         Date = mdy(Date)) %>%
+  filter(`TP_(uMol/L)` < 13 & `TP_(uMol/L)` > 0) %>%
+  group_by(Date, Station, Location) %>%
+  summarize(Water_TN_uML= mean(`TN_(uMol/L)`),
+            Water_TP_uML = mean(`TP_(uMol/L)`),
+            Water_TN_mgL = mean(`TN_mg/L`), 
+            Water_TP_mgL = mean(`TP_mg/L`))
+
+
+S_TNTP <- Water_TNTP %>%
+  filter(Location == "surface")
+
+B_TNTP <- Water_TNTP %>%
+  filter(Location == "bottom")
+
+
+
+Seston_CN <- read_xlsx("./Raw Data/LakeChamp_Seston_CN_2021_Clean.xlsx") %>%
+  mutate(Date= ymd(Date)) %>%
+  group_by(Site, Date) %>%
+  summarise(N_mgL = mean(`N mg/L`),
+            C_mgL = mean(`C mg/L`), 
+            CN = mean(`C:N`),
+            C_uML = mean(C_uML),
+            N_uML = mean(N_uML)) %>%
+  mutate(Station = if_else(Site == "Missisquoi", "MB", "SA"),
+         Location = "IWC") %>%
+  ungroup() %>%
+  select(-Site)
+
+Seston_P <- read_xlsx("./Raw Data/ParticulatePhosphorus_Final.xlsx") %>%
+  mutate(Date = ymd(Date), 
+         Station = Site, 
+         SestonP_uML = `PP_uM.L`, 
+         SestonP_mgL = `PP_mg.L`,
+         SestonP_ugL = `PP_ug.L`,
+         Location = "IWC") %>%
+  select(Date, Station, SestonP_uML, SestonP_mgL, SestonP_ugL, Location) %>%
+  filter(SestonP_uML > 0.03)  #one really low value in SA Phosphorus
+
+
+
+Toxins <- read.csv("./Raw Data/Toxins_SAMB2021_Clean.csv") %>%
+  mutate(Microcystin = if_else(is.na(Microcystin), 0, Microcystin),
+         Anatoxin = if_else(is.na(Anatoxin), 0, Anatoxin),
+         Location = "IWC") %>%
+  select(-Cylindrospermopsin, -SampleID) %>%
+  mutate(Date = mdy(Date))
+
+
+
+```
+
+# Exploratory Data Analysis: 
+
+Searching for Outliers
+
+```{r}
+Water_TNTP %>%
+  ggplot(aes(x=Date, y=Water_TP_uML, group=Station, color=Station)) +
+  geom_point()
+
+```
+
+
+# Creating Large Data Frame: 
+
+```{r}
+
+
+CN_Toxins <- full_join(Toxins, Seston_CN, by=c("Station", "Date", "Location"))
+S_TNTP_Toxins <- full_join(Toxins, S_TNTP, by=c("Station", "Date", "Location"))
+B_TNTP_Toxins <- full_join(Toxins, B_TNTP, by=c("Station", "Date", "Location"))
+TNTP_Toxins <- rbind(S_TNTP_Toxins, B_TNTP_Toxins)
+
+
+CN_Combined_IWC <- full_join(CN_Toxins, Water_CN, by=c("Station", "Date", 
+                                                       "Location")) %>%
+  full_join(., Seston_P, by=c("Station", "Date", "Location"))
+
+
+
+All_Combined <- full_join(CN_Combined_IWC, TNTP_Toxins, 
+                          by=c("Station", "Date", "Location", "Anatoxin", 
+                               "Microcystin")) %>%
+  mutate(SestonC_uML = C_mgL/12 *1000,
+         SestonN_uML = N_mgL/14 *1000)
+
+Toxins_PC <- full_join(Toxins, Profiler_PC, by=c("Date", "Station"))
+
+
+All_Combined_BloomStages <- All_Combined %>%
+  mutate(BloomStages = if_else(Station == "SA" & 
+                                 Date <= as.POSIXct("2021-07-08"), "Lag", "Other"),
+         BloomStages = if_else(Station == "SA" & 
+                                 Date > as.POSIXct("2021-07-08") & 
+                                 Date <= as.POSIXct("2021-07-31"), 
+                               "Exponential", BloomStages),
+         BloomStages = if_else(Station == "SA" & Date > as.POSIXct("2021-07-31") 
+                               & Date <= as.POSIXct("2021-10-04"), "Stationary", 
+                               BloomStages),
+         BloomStages = if_else(Station == "SA" & Date > as.POSIXct("2021-10-04"),
+                               "Decline", BloomStages),
+         BloomStages = if_else(Station == "MB" & Date <= as.POSIXct("2021-07-26"), 
+                               "Lag", BloomStages),
+         BloomStages = if_else(Station == "MB" & Date > as.POSIXct("2021-07-26")
+                               & Date <= as.POSIXct("2021-08-14"), "Exponential",
+                               BloomStages),
+         BloomStages = if_else(Station == "MB" & Date > as.POSIXct("2021-08-14") 
+                               & Date <= as.POSIXct("2021-09-08"), "Stationary",
+                               BloomStages),
+         BloomStages = if_else(Station == "MB" & Date > as.POSIXct("2021-09-08"),
+                               "Decline", BloomStages))
+
+## Nutrient and Toxin Data ##
+
+Nutrient_Data <- full_join(Water_CN, Water_TNTP, by=c("Station", 
+                                                      "Date",
+                                                      "Location")) %>%
+  full_join(., Seston_CN, by=c("Station", "Date", "Location")) %>%
+  full_join(., Seston_P, by=c("Station", "Date", "Location")) %>%
+  full_join(., Toxins, by=c("Station", "Date", "Location")) %>%
+  mutate(Water_TN_ugL = Water_TN_mgL*1000,
+         Water_TP_ugL = Water_TP_mgL*1000)
+
+
+
+```

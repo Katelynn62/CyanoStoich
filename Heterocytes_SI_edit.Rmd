@@ -1,0 +1,359 @@
+---
+title: "Heterocytes - Supplemental Information"
+author: "Katelynn"
+date: "2024-10-14"
+output: html_document
+---
+
+# Load Libraries
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggpubr)
+library(readxl)
+
+```
+# Load Data for Heterocyte Counts
+
+
+# Read in Sample MetaData
+```{r}
+MetaData <- read_xlsx("./PhytoplanktonData/MetaData2021_Phytos.xlsx")
+
+```
+
+#### Count Number of Heterocytes ####
+
+## Load in Counts Pages and load as one file ##
+
+```{r}
+
+IP21_054_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_054_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_054_SA")
+IP21_057_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_057_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_057_SA")
+IP21_058_2_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_058_2_SA - Biovolume.csv")%>%
+  mutate(Sample_ID = "IP21_058_2_SA")
+IP21_061_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_061_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_061_SA")
+IP21_065_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_065_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_065_SA") 
+IP21_070_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_070_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_070_SA")
+IP21_074_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_074_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_074_SA")
+IP21_078_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_078_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_078_SA")
+IP21_085_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_085_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_085_SA")
+IP21_089_B <- read.csv("./PhytoplanktonData/2021/St.Albans/IP21_089_SA - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_089_SA")
+
+
+
+
+SA21_Nfix_BV <- full_join(IP21_054_B, IP21_057_B) %>%
+  full_join(., IP21_058_2_B) %>%
+  full_join(., IP21_061_B) %>%
+  full_join(., IP21_065_B) %>%
+  full_join(., IP21_070_B)%>%
+  full_join(., IP21_074_B)%>%
+  full_join(., IP21_078_B)%>%
+  full_join(., IP21_085_B)%>%
+  full_join(., IP21_089_B) %>%
+  left_join(., MetaData, by=c("Sample_ID")) %>%
+  mutate(Type = if_else(Type == "Filament", "filament", Type)) %>%
+  mutate(avg_height = if_else(Type == "filament" & is.na(h), d, h)) %>% 
+  mutate(Colony.Density = if_else(Type == "cell" | Type == "heterocyte" | Type == "akinete", 1, Colony.Density)) %>%
+  mutate(Colony.Density = if_else(Type == "filament" & is.na(Colony.Density), Filament.Length/avg_height, Colony.Density)) %>%
+  mutate(Colony.Density = if_else(Type == "colony" & is.na(Colony.Density), ((Colony.Area*Cells.Counted)/Measured.Area), Colony.Density)) %>% # I am then 
+  select(Sample.ID, Genus, species, Type, Colony.Density, ID) %>% 
+  na.omit() %>%
+  group_by(ID, Sample.ID, Genus, species, Type) %>%
+  summarize(Colony.Density = mean(Colony.Density)) %>%
+  mutate(Nfix = if_else(Genus == "Aphanizomenon" | 
+                          Genus == "Cuspidothrix" |
+                          Genus == "Dolichospermum" | 
+                          Genus == "Gloeotrichia", "Yes", "Omit")) %>%
+  mutate(Nfix = if_else(Genus == "Aphanocapsa" |
+                          Genus == "Aphanothece" |
+                          Genus == "Woronichinia" |
+                          Genus == "Chroococcus" |
+                          Genus == "Merismopedia" |
+                          Genus == "Microcystis" |
+                          Genus == "Planktolyngbya" |
+                          Genus == "Pseudoanabaena" |
+                          Genus == "Romeria" |
+                          Genus == "Snowella", "No", Nfix)) %>%
+  filter(Nfix=="Yes") %>%
+  group_by(Sample.ID) %>%
+  rename(Sample_ID = Sample.ID) %>%
+  summarize(Num_cells = sum(Colony.Density))
+
+
+##
+
+SA21_Het <- full_join(IP21_054_C, IP21_057_C) %>%
+  full_join(., IP21_058_2_C) %>%
+  full_join(., IP21_061_C) %>%
+  full_join(., IP21_065_C) %>%
+  full_join(., IP21_070_C)%>%
+  full_join(., IP21_074_C)%>%
+  full_join(., IP21_078_C)%>%
+  full_join(., IP21_085_C)%>%
+  full_join(., IP21_089_C) %>%
+  left_join(., MetaData, by=c("Sample_ID")) %>%
+  mutate(Heterocyte = replace_na(Heterocyte, 0)) %>%
+  select(Sample_ID, Heterocyte) %>%
+  group_by(Sample_ID) %>%
+  summarize(Het_Count = sum(Heterocyte))
+
+SA21_Het <- left_join(SA21_Het, MetaData, by=c("Sample_ID")) %>%
+  filter(Station == "SA") %>%
+  mutate(Het_Count = replace_na(Het_Count, 0))
+
+SA21_Nfix_Het <- full_join(SA21_Het, SA21_Nfix_BV, by=c("Sample_ID")) %>%
+  left_join(., MetaData, by=c("Sample_ID")) %>%
+  mutate(Num_cells = replace_na(Num_cells, 0)) %>%
+  mutate(Het.Cell = Het_Count/Num_cells) %>%
+  mutate(Het.Cell = replace_na(Het.Cell, 0)) %>%
+  mutate(Date = Date.y) %>%
+  select(-Date.x, -Date.y)
+
+### Make Heterocyte Biovolume Figure
+
+SA_HetFig <- SA21_Nfix_Het %>%
+  mutate(Date = as.Date(Date)) %>%
+  ggplot(aes(x=Date, y=Het.Cell))+
+  annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-07-11"), ymin = 0, ymax = 0.2,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-11"), xmax = as.Date("2021-07-15"), ymin = 0, ymax =0.2,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-07-15"), xmax = as.Date("2021-07-27"), ymin = 0, ymax = 0.2,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-27"), xmax = as.Date("2021-08-16"), ymin = 0, ymax = 0.2,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-16"), xmax = as.Date("2021-08-27"), ymin = 0, ymax = 0.2,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 0.2,
+           fill = "grey98") +
+  annotate(geom="text", x= as.Date("2021-06-05"), y=0.21, label="PrB",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-07-12"), y=0.21, label="BC1",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-07-18"), y=0.21, label="E",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-07-30"), y=0.21, label="PB",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-08-20"), y=0.21, label="BC2",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-09-01"), y=0.21, label="PoB",
+           color="black", size=1.75) +
+  geom_line(size=0.75)+
+  geom_point(size=1)+
+  theme_classic() +
+  xlab("")+
+  ggtitle("St. Albans") +
+  ylab("") +
+  xlim(as.Date("2021-06-01"), as.Date("2021-11-05")) +
+  theme_classic() +
+  theme(axis.text = element_text(size=10), axis.title = element_text(size=11), 
+        legend.position="None", plot.title = element_text(size=11),
+        plot.margin = unit(c(0,0,0,0), units = "in"))
+
+
+ggarrange(SA_HetFig, SA, nrow=2, ncol=1, align="hv")
+
+```
+
+## Missisquoi Bay
+
+```{r}
+
+IP21_047_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_047_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_047_MB")
+IP21_064_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_064_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_064_MB")
+IP21_068_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_068_MB - Biovolume.csv")%>%
+  mutate(Sample_ID = "IP21_068_MB")
+IP21_072_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_072_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_072_MB")
+IP21_075_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_075_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_075_MB")
+IP21_079_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_079_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_079_MB")
+IP21_083_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_083_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_083_MB")
+IP21_088_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_088_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_088_MB")
+IP21_092_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_092_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_092_MB")
+IP21_095_B <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_095_MB - Biovolume.csv") %>%
+  mutate(Sample_ID = "IP21_095_MB")
+
+MB21_Nfix <-  full_join(IP21_047_B, IP21_064_B) %>%
+  full_join(., IP21_068_B) %>%
+  full_join(., IP21_072_B) %>%
+  full_join(., IP21_075_B) %>%
+  full_join(., IP21_079_B) %>%
+  full_join(., IP21_083_B)%>%
+  full_join(., IP21_088_B)%>%
+  full_join(., IP21_092_B)%>%
+  full_join(., IP21_095_B)%>%
+  left_join(., MetaData, by=c("Sample_ID")) %>%
+   mutate(Type = if_else(Type == "Filament", "filament", Type)) %>%
+  mutate(avg_height = if_else(Type == "filament" & is.na(h), d, h)) %>% 
+  mutate(Colony.Density = if_else(Type == "cell" | Type == "heterocyte" | Type == "akinete", 1, Colony.Density)) %>%
+  mutate(Colony.Density = if_else(Type == "filament" & is.na(Colony.Density), Filament.Length/avg_height, Colony.Density)) %>%
+  mutate(Colony.Density = if_else(Type == "colony" & is.na(Colony.Density), ((Colony.Area*Cells.Counted)/Measured.Area), Colony.Density)) %>% 
+  select(Sample.ID, Genus, species, Type, Colony.Density, ID) %>% 
+  na.omit() %>%
+  group_by(ID, Sample.ID, Genus, species, Type) %>%
+  summarize(Colony.Density = mean(Colony.Density)) %>%
+  mutate(Nfix = if_else(Genus == "Aphanizomenon" | 
+                          Genus == "Cuspidothrix" |
+                          Genus == "Dolichospermum" | 
+                          Genus == "Gloeotrichia", "Yes", "Omit")) %>%
+  mutate(Nfix = if_else(Genus == "Aphanocapsa" |
+                          Genus == "Aphanothece" |
+                          Genus == "Woronichinia" |
+                          Genus == "Chroococcus" |
+                          Genus == "Merismopedia" |
+                          Genus == "Microcystis" |
+                          Genus == "Planktolyngbya" |
+                          Genus == "Pseudoanabaena" |
+                          Genus == "Romeria" |
+                          Genus == "Snowella", "No", Nfix)) %>%
+  filter(Nfix=="Yes") %>%
+  group_by(Sample.ID) %>%
+  rename(Sample_ID = Sample.ID) %>%
+  summarize(Num_cells = sum(Colony.Density))
+
+
+
+IP21_047_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_047_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_047_MB",
+         Heterocyte = as.numeric(Heterocyte)) %>%
+  select(-Akinete)
+IP21_064_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_064_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_064_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_068_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_068_MB - Counts.csv")%>%
+  mutate(Sample_ID = "IP21_068_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_072_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_072_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_072_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_075_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_075_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_075_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_079_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_079_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_079_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_083_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_083_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_083_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_088_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_088_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_088_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_092_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_092_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_092_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+IP21_095_C <- read.csv("./PhytoplanktonData/2021/MissBay/IP21_095_MB - Counts.csv") %>%
+  mutate(Sample_ID = "IP21_095_MB",
+         Heterocyte = as.numeric(Heterocyte))%>%
+  select(-Akinete)
+
+
+MB21_Het <- full_join(IP21_047_C, IP21_064_C) %>%
+  full_join(., IP21_068_C) %>%
+  full_join(., IP21_072_C) %>%
+  full_join(., IP21_075_C) %>%
+  full_join(., IP21_079_C) %>%
+  full_join(., IP21_083_C)%>%
+  full_join(., IP21_088_C)%>%
+  full_join(., IP21_092_C)%>%
+  full_join(., IP21_095_C)%>%
+  left_join(., MetaData, by=c("Sample_ID")) %>%
+  mutate(Heterocyte = replace_na(Heterocyte, 0)) %>%
+  select(Sample_ID, Heterocyte) %>%
+  group_by(Sample_ID) %>%
+  summarize(Het_Count = sum(Heterocyte))
+
+MB21_Het <- left_join(MB21_Het, MetaData, by=c("Sample_ID")) %>%
+  filter(Station == "MB") %>%
+  mutate(Het_Count = replace_na(Het_Count, 0))
+
+MB21_Nfix_Het <- full_join(MB21_Het, MB21_Nfix, by=c("Sample_ID")) %>%
+  left_join(., MetaData, by=c("Sample_ID")) %>%
+  mutate(Num_cells = replace_na(Num_cells, 0)) %>%
+  mutate(Het.Cell = Het_Count/Num_cells) %>%
+  mutate(Het.Cell= replace_na(Het.Cell, 0)) %>%
+  mutate(Date = Date.y) %>%
+  select(-Date.x, -Date.y)
+
+### Make Heterocyte Biovolume Figure
+
+MB_HetFig <- MB21_Nfix_Het %>%
+  mutate(Date = as.Date(Date)) %>%
+  ggplot(aes(x=Date, y=Het.Cell))+
+  annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-08-07"), ymin = 0, ymax = 0.3,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-07"), xmax = as.Date("2021-08-12"), ymin = 0, ymax =0.3,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-12"), xmax = as.Date("2021-08-20"), ymin = 0, ymax = 0.3,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-20"), xmax = as.Date("2021-08-24"), ymin = 0, ymax = 0.3,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-24"), xmax = as.Date("2021-09-03"), ymin = 0, ymax = 0.3,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-09-03"), xmax = as.Date("2021-09-15"), ymin = 0, ymax = 0.3,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-09-15"), xmax = as.Date("2021-09-27"), ymin = 0, ymax = 0.3,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-09-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 0.3,
+           fill = "grey98") +
+  annotate(geom="text", x= as.Date("2021-06-05"), y=0.31, label="PrB",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-08-09"), y=0.29, label="E1",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-08-15"), y=0.31, label="PB1",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-08-22"), y=0.29, label="BC1",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-08-28"), y=0.31, label="E2",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-09-07"), y=0.29, label="PB2",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-09-18"), y=0.31, label="BC2",
+           color="black", size=1.75) +
+  annotate(geom="text", x= as.Date("2021-09-30"), y=0.29, label="PoB",
+           color="black", size=1.75) +
+  geom_line(size=0.75)+
+  geom_point(size=1)+
+  theme_classic() +
+  ggtitle("Missisquoi Bay")+
+  xlab("")+
+  ylab("Heterocytes per Cells") +
+  xlim(as.Date("2021-06-01"), as.Date("2021-11-05")) +
+  theme_classic() +
+  theme(axis.text = element_text(size=10), axis.title = element_text(size=11), 
+        legend.position="None", plot.title = element_text(size=11),
+        plot.margin = unit(c(0,0,0,0), units = "in"))
+
+
+Het_Figs <- ggarrange(MB_HetFig, SA_HetFig, ncol=2, nrow=1, align="v")
+
+
+ggsave("./HetFigs_SI.tiff", plot=Het_Figs, device="tiff", width=5, height=2.5, units="in", dpi=600)
+
+```
+

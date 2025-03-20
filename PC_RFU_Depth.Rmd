@@ -1,0 +1,28 @@
+---
+title: "Phycocyanin Peaks"
+author: "Katelynn"
+date: "2024-10-14"
+output: html_document
+---
+
+Some of our seston data has higher nutrient cocentrations than the surface and the bottom sample. I anticipate that this is a result of having higher phytoplankton concentrations at different depths than 0.5m and 2.5m.
+
+
+```{r}
+Profiler_MB %>%
+  filter(Date == as.Date("2021-08-16")) %>%
+  ggplot(aes(x=datetime, y=PC_RFU, group=as.character(Depth), color=as.character(Depth)))+
+  geom_point()+
+  geom_line()
+
+
+Profiler_MB %>%
+  filter(Date == as.Date("2021-08-03")) %>%
+  ggplot(aes(x=datetime, y=PC_RFU, group=as.character(Depth), color=as.character(Depth)))+
+  geom_point()+
+  geom_line()
+
+
+```
+
+At times there is higher phycocyanin deeper in the water column compared to the surface or at 2.5m. For sustained periods of time, the 0.5m depth was not collected at Missisquoi Bay due to Buoy malfunction.

@@ -1,0 +1,251 @@
+---
+title: "Toxin Quota - Supplemental"
+author: "Katelynn"
+date: "2024-10-14"
+output: html_document
+---
+
+Reviewers Suggested I normalize toxin concentrations by potential cyanotoxin producers. 
+
+## Create Toxic vs Non-toxic Categories in Biomass data
+
+```{r}
+Phytos <- read_csv("./Clean Data/Warner_etal_Disturbance_PhytoplanktonBV.csv") %>%
+  #filter(Taxonomic_group == "Cyanobacteria") %>%
+  select(Sample_ID, SampleDate, Genus, species, BM_ug.L, RA_BM, Taxonomic_group) %>%
+  mutate(SampleDate = if_else(Sample_ID == "IP21_074_SA", as.Date("2021-08-26"), SampleDate),
+         SampleDate = if_else(Sample_ID == "IP21_065_SA", as.Date("2021-08-13"), SampleDate)) %>%
+  mutate(Date = SampleDate) %>%
+  mutate(Station = if_else(grepl("MB", Sample_ID), "MB", "SA"))
+
+# unique list of cyanos
+
+Phytos %>%
+  select(Genus, species) %>%
+  unique()
+
+# Biomass of each group of Toxin Producers
+
+Phytos_ATX <- Phytos %>%
+  filter(Genus == "Dolichospermum" | Genus == "Aphanizomenon" | Genus == "Cuspidothrix" | Genus == "Microcystis" |
+           Genus == "Pseudoanabaena") %>%
+  group_by(Sample_ID, SampleDate) %>%
+  summarise(Sum_BM_ATX = sum(BM_ug.L))
+  
+
+Phytos_MC <- Phytos %>%
+  filter(Genus == "Dolichospermum" |  Genus == "Microcystis" | Genus == "Anabaenopsis" | Genus == "Aphanocapsa" | Genus == "Calothrix" | 
+        Genus == "Gloeotrichia" | Genus == "Pseudoanabaena" | Genus == "Merismopedia") %>%
+  group_by(Sample_ID, SampleDate) %>%
+  summarise(Sum_BM_MC = sum(BM_ug.L))
+
+
+Phytos_Toxin_BM <- full_join(Phytos_ATX, Phytos_MC)
+
+#replace NA with zeros
+
+Phytos_Toxin_BM$Sum_BM_ATX <- replace_na(Phytos_Toxin_BM$Sum_BM_ATX, 0)
+```
+
+## Join Toxin Data with Phytplankton Data. 
+
+To do this, we need to clean up the Sample ID, or create a new column with Site ID 
+
+```{r}
+Phytos_Toxin_BM <- Phytos_Toxin_BM %>%
+  mutate(Station = if_else(grepl("MB", Sample_ID), "MB", "SA")) %>%
+  mutate(Date = ymd(SampleDate)) %>%
+  ungroup() %>%
+  select(-Sample_ID, -SampleDate)
+
+#read in toxin data
+Toxins <- read.csv("Toxins_SAMB2021_Clean.csv") %>%
+  mutate(Microcystin = if_else(is.na(Microcystin), 0, Microcystin),
+         Anatoxin = if_else(is.na(Anatoxin), 0, Anatoxin)) %>%
+  mutate(Date = mdy(Date)) %>%
+  select(Date, Station, Anatoxin, Microcystin)
+
+Phytos_Toxin_BM <- full_join(Phytos_Toxin_BM, Toxins) %>%
+  na.omit() %>%
+  mutate(ATX_Q = Anatoxin/Sum_BM_ATX,
+         MC_Q = Microcystin/Sum_BM_MC) 
+
+Phytos_Toxin_BM$ATX_Q[is.nan(Phytos_Toxin_BM$ATX_Q)]<-0
+
+```
+
+
+### Toxin Quota Statistics.
+
+Steps: 
+- Test for Normality
+- Run Appropriate Tests
+- Summary Statistics (Mean, SD, Max)
+
+
+# Test for Normality
+```{r}
+
+shapiro.test(Phytos_Toxin_BM$ATX_Q)
+
+shapiro.test(Phytos_Toxin_BM$MC_Q)
+
+```
+Both samples had P-values that were < 0.05, suggesting that the data is not normally distributed. Because the groups are independent of one another, we will run a Mann-Whitney U test.
+
+```{r}
+ATX_Q <- Phytos_Toxin_BM %>%
+  filter(Anatoxin > 0)
+
+MC_Q <- Phytos_Toxin_BM %>%
+  filter(Microcystin > 0)
+
+results <- wilcox.test(ATX_Q ~ Station, data = ATX_Q, exact = FALSE)
+results
+
+results <- wilcox.test(MC_Q ~ Station, data = MC_Q, exact = FALSE)
+results
+
+```
+
+Overall, the results still are not statistically different...likely due to the high inflation of non-toxic samples. Though when we remove the samples where microcystin and anatoxin were both less than 0, there is still no significant difference in cyanotoxins...Which may be a result of low sample size. 
+
+
+Visualize the Difference in toxicity via boxplots. 
+
+```{r}
+Phytos_Toxin_BM %>%
+  select(ATX_Q, MC_Q, Station) %>%
+  pivot_longer(cols=c(ATX_Q, MC_Q), values_to = "Q", names_to = "Toxin") %>%
+  filter(Q > 0) %>%
+  ggplot(aes(x=Toxin, y=Q, group=Station, color=Station)) +
+  geom_jitter()
+
+```
+## Join PC and Toxins DF together
+
+```{r}
+Profiler_MB <- read_csv("MissisquoiWinch_PFL_Step_with_headers.csv") %>%
+  mutate(datetime = mdy_hm(TIMESTAMP)) %>%
+  mutate(Year = year(datetime)) %>%
+  mutate(Month = month(datetime)) %>%
+  mutate(Day = day(datetime)) %>%
+  mutate(Hour = hour(datetime)) %>%
+  mutate(Minute = 0) %>%
+  mutate(datetime = make_datetime(Year, Month, Day, Hour, Minute)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  mutate(Depth = Depth_meters) %>%
+  mutate(Depth = if_else(Depth <=0.8, 0.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >0.8 & Depth <=1.3, 1.0, Depth)) %>%
+  mutate(Depth = if_else(Depth >1.3 & Depth <=1.8, 1.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >1.8 & Depth <=2.3, 2.0, Depth)) %>%
+  mutate(Depth = if_else(Depth >2.3 & Depth <=2.8, 2.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >2.8 & Depth <=3.3, 3.0, Depth)) %>%
+  filter(Depth < 3.0) %>%
+  mutate(ODOmgL = `ODO_mg/L`) %>%
+  mutate(ODOsat = `ODOsat_%`) %>%
+  mutate(PC_RFU = `BGA_PC_RFU`) %>%
+  mutate(Chl_RFU = `Chl_RFU`) %>%
+  mutate(Turbid = `Turbid_NTU`) %>%
+  mutate(Remove = if_else(Month == 9 & PC_RFU > 15, "Yes", "No")) %>%
+  filter(Remove == "No") %>%
+  select(datetime, Day, Month, Hour, Depth, Temp_C, ODOmgL, ODOsat, PC_RFU,
+         Chl_RFU, pH, Month, Day, Year, Turbid) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  group_by(Date) %>%
+  summarise(PC_RFU = mean(PC_RFU)) %>%
+  mutate(Station = "MB") 
+
+
+Profiler_SA <- read_csv("StAlbansInner_PFL_Step_with_headers.csv") %>%
+  mutate(datetime = mdy_hm(TIMESTAMP)) %>%
+  mutate(Year = year(datetime)) %>%
+  mutate(Month = month(datetime)) %>%
+  mutate(Day = day(datetime)) %>%
+  mutate (Hour = hour(datetime)) %>%
+  mutate(Minute = 0) %>%
+  mutate(datetime = make_datetime(Year, Month, Day, Hour, Minute)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  mutate(Depth = Depth_meters) %>%
+  mutate(Depth = if_else(Depth <=0.8, 0.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >0.8 & Depth <=1.3, 1.0, Depth)) %>%
+  mutate(Depth = if_else(Depth >1.3 & Depth <=1.8, 1.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >1.8 & Depth <=2.3, 2.0, Depth)) %>%
+  mutate(Depth = if_else(Depth >2.3 & Depth <=2.8, 2.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >2.8 & Depth <=3.3, 3.0, Depth)) %>%
+  mutate(Depth = if_else(Depth >3.3 & Depth <=3.8, 3.5, Depth)) %>%
+  mutate(Depth = if_else(Depth >3.8 & Depth <=4.3, 4.0, Depth)) %>%
+  mutate(Depth = if_else(Depth >4.3 & Depth <=4.8, 4.5, Depth)) %>%
+  mutate(ODOmgL = `ODO_mg/L`) %>%
+  mutate(ODOsat = `ODOsat_%`) %>%
+  mutate(PC_RFU = `BGA_PC_RFU`) %>%
+  mutate(Chl_RFU = `Chl_RFU`) %>%
+  mutate(Turbid = `Turbid_NTU`) %>%
+  select(datetime, Day, Month, Hour, Depth, Temp_C, ODOmgL, ODOsat, 
+         PC_RFU, Chl_RFU, pH, Month, Day, Year, Turbid) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  group_by(Date) %>%
+  summarise(PC_RFU = mean(PC_RFU)) %>%
+  mutate(Station = "SA")
+
+
+Profiler_PC <- rbind(Profiler_MB, Profiler_SA)
+
+
+Toxins_PC <- full_join(Phytos_Toxin_BM, Profiler_PC, by=c("Date", "Station"))
+
+```
+
+
+### Toxic Cyanos over time with toxins.
+
+Join toxin DF with species df
+
+```{r}
+Phytos_Toxin <- left_join(Phytos, Phytos_Toxin_BM) %>%
+  na.omit() %>%
+  filter(Genus == "Dolichospermum" | Genus == "Aphanizomenon" | Genus == "Cuspidothrix" | Genus == "Microcystis" |
+           Genus == "Pseudoanabaena" | Genus == "Anabaenopsis" | Genus == "Aphanocapsa" | Genus == "Calothrix" | 
+        Genus == "Gloeotrichia" | Genus == "Merismopedia") %>%
+  group_by(Station, Date, ATX_Q, MC_Q, Genus) %>%
+  summarise(BM = sum(BM_ug.L)) %>%
+  pivot_longer(cols=c(ATX_Q, MC_Q), values_to = "Q", names_to = "Toxin")
+
+Phytos_Toxin %>%
+  filter(Station == "MB") %>%
+  ggplot() +
+  geom_bar(aes(x=Date, y=Q, fill=Toxin), stat="identity", position="dodge", width=4, alpha=.4) +
+  geom_line(aes(x = Date, y = BM/120000000, color=Genus, group = Genus), size = 0.5) + 
+  #geom_point(aes(x = Date, y = BM/120000000, color=Genus, group = Genus), size = 0.5) + 
+  scale_fill_manual(values=c("orangered3", "cadetblue4"))+
+  #scale_y_continuous(sec.axis = sec_axis(~.*120000000, name = "")) +
+  theme_classic() 
+
+Phytos_Toxin %>%
+  filter(Station == "MB") %>%
+  filter(Genus != "Dolichospermum") %>%
+  filter(Date < as.Date("2021-10-11")) %>%
+  ggplot() +
+  geom_bar(aes(x=Date, y=Q, fill=Toxin), stat="identity", position="dodge", alpha=0.15) +
+  geom_line(aes(x = Date, y = BM/120000000, color=Genus, group = Genus), size = 0.5) + 
+  geom_point(aes(x = Date, y = BM/120000000, color=Genus, group = Genus), size = 0.5) + 
+  scale_fill_manual(values=c("orangered3", "cadetblue4"))+
+  ylim(0, 0.00002) +
+  scale_y_continuous(sec.axis = sec_axis(~.*120000000, name = "")) +
+  theme_classic()
+
+Phytos_Toxin %>%
+  filter(Station == "SA") %>%
+  filter(Genus == "Cuspidothrix" | Genus == "Aphanizomenon") %>%
+  #filter(Date < as.Date("2021-10-11")) %>%
+  ggplot() +
+  geom_bar(aes(x=Date, y=Q, fill=Toxin), stat="identity", position="dodge", alpha=0.15) +
+  geom_line(aes(x = Date, y = BM/1200000, color=Genus, group = Genus), size = 0.5) + 
+  geom_point(aes(x = Date, y = BM/1200000, color=Genus, group = Genus), size = 0.5) + 
+  scale_fill_manual(values=c("orangered3", "cadetblue4"))+
+  ylim(0, 0.00002) +
+  scale_y_continuous(sec.axis = sec_axis(~.*1200000, name = "")) +
+  theme_classic()
+
+
+```

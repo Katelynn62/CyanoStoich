@@ -1,0 +1,2350 @@
+---
+title: "Clean Analysis"
+author: "Katelynn"
+date: "2024-10-14"
+output: html_document
+---
+
+#Load Libraries
+```{r}
+library(tidyverse)
+library(rLakeAnalyzer)
+library(lubridate)
+library(readxl)
+require(grid) 
+library(strucchange)
+library(broom)
+library(patchwork)
+library(plotrix)
+library(dataRetrieval)
+library(ggtext)
+library(ggforce)
+library(vegan)
+library(ggrepel)
+library(BiodiversityR)
+library(cimir)
+library(ggpubr)
+library(factoextra)
+library(dunn.test)
+library(ggformula)
+
+```
+
+I found it helpful in my second manuscript to start my analysis in an R markdown file so I can easily comment and write out findings underneath each figure that I am making, so I am taking the same approach with this analysis. 
+
+***Update: I am currently switching my ANOVAs to Kruskal-Wallis tests with Dunn Post-hoc tests for non-parametric data.
+
+
+Reworking the analysis: 
+1. Physical Properties of the Lake
+2. Biological Factors - Phytos and Toxins and Seston and Nutrients. 
+3. Multivariate Analyses for Drivers of the Bloom. 
+
+
+## 1. Physical Properties of the Lake. 
+
+
+### Missisquoi Bay
+
+#### Temperature
+
+```{r}
+MB_Profiler <- read_csv("./Clean Data/MB_Profiler_2021_Clean.csv") %>%
+  filter(Month >= 6 & Month < 11) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  mutate(Group = if_else(Date >= as.Date("2021-06-15") & Date <= as.Date("2021-06-23"), 1, 0),
+         Group = if_else(Date == as.Date("2021-06-25"), 2, Group),
+         Group = if_else(Date >= as.Date("2021-06-28") & Date <= as.Date("2021-07-03"), 3, Group),
+         Group = if_else(Date >= as.Date("2021-07-06") & Date <= as.Date("2021-07-15"), 4, Group),
+         Group = if_else(Date >= as.Date("2021-07-17") & Date <= as.Date("2021-08-21"), 5, Group),
+         Group = if_else(Date >= as.Date("2021-08-23") & Date <= as.Date("2021-09-04"), 6, Group),
+         Group = if_else(Date >= as.Date("2021-09-06") & Date <= as.Date("2021-09-08"), 7, Group),
+         Group = if_else(Date >= as.Date("2021-09-10") & Date <= as.Date("2021-10-01"), 8, Group),
+         Group = if_else(Date >= as.Date("2021-10-03") & Date <= as.Date("2021-10-05"), 9, Group),
+         Group = if_else(Date >= as.Date("2021-10-07") & Date <= as.Date("2021-10-15"), 10, Group),
+         Group = if_else(Date >= as.Date("2021-10-18") & Date <= as.Date("2021-10-22"), 11, Group),
+         Group = if_else(Date >= as.Date("2021-10-24") & Date <= as.Date("2021-10-25"), 12, Group),
+         Group = if_else(Date >= as.Date("2021-10-27") & Date <= as.Date("2021-10-31"), 13, Group)) %>%
+  select(-Date, -Remove)
+
+
+
+MB_Temp <- MB_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  filter(Depth == 1.0 | Depth == 2.5) %>%
+  group_by(Depth, datetime, Group) %>%
+  summarize(Temp_C = mean(Temp_C)) %>%
+  mutate(Depth = as.character(Depth)) %>%
+  ggplot(aes(x=datetime, y=Temp_C, color=Depth, group=Group)) +
+       annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-08-07 00:00:00"), ymin = 0, ymax = 30,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-07 00:00:00"), xmax = as_datetime("2021-08-12 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-12 00:00:00"), xmax = as_datetime("2021-08-20 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-20 00:00:00"), xmax = as_datetime("2021-08-24 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-08-24 00:00:00"), xmax = as_datetime("2021-09-03 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-03 00:00:00"), xmax = as_datetime("2021-09-15 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-09-15 00:00:00"), xmax = as_datetime("2021-09-27 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax =30,
+           fill = "grey98") +
+   annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=31, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-09 12:00:00"), y=29, label="E1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-15 00:00:00"), y=31, label="PB1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-22 00:00:00"), y=29, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-28 00:00:00"), y=31, label="E2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-07 00:00:00"), y=29, label="PB2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-18 00:00:00"), y=31, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-30 12:00:00"), y=29, label="PoB",
+           color="black", size=1.4) +
+  geom_line(size = 0.5) + 
+  scale_color_manual(values=c("orangered3", "dodgerblue3"))+
+  theme_classic() +
+  ggtitle("A")+
+  ylab("Water Temperature (C)")+
+  xlab("") +
+   theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7), legend.position = "none",
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0.1), 
+                           "cm"))
+
+```
+
+```{r}
+
+MB_DO <- MB_Profiler %>%
+  select(Depth, datetime, ODOmgL, Month, Day, Year, Group) %>%
+  filter(Depth == 1.0 | Depth == 2.5) %>%
+  group_by(Depth, datetime, Group) %>%
+  summarize(DO = mean(ODOmgL)) %>%
+  mutate(Depth = as.character(Depth)) %>%
+  ggplot(aes(x=datetime, y=DO, color=Depth, group=Group)) +
+       annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-08-07 00:00:00"), ymin = 0, ymax = 20,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-07 00:00:00"), xmax = as_datetime("2021-08-12 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-12 00:00:00"), xmax = as_datetime("2021-08-20 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-20 00:00:00"), xmax = as_datetime("2021-08-24 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-08-24 00:00:00"), xmax = as_datetime("2021-09-03 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-03 00:00:00"), xmax = as_datetime("2021-09-15 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-09-15 00:00:00"), xmax = as_datetime("2021-09-27 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax =20,
+           fill = "grey98") +
+   annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=20.6, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-09 12:00:00"), y=19.4, label="E1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-15 00:00:00"), y=20.6, label="PB1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-22 00:00:00"), y=19.4, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-28 00:00:00"), y=20.6, label="E2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-07 00:00:00"), y=19.4, label="PB2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-18 00:00:00"), y=20.6, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-30 12:00:00"), y=19.4, label="PoB",
+           color="black", size=1.4) +
+  geom_line(size = 0.5) + 
+  scale_color_manual(values=c("orangered3", "dodgerblue3"))+
+  theme_classic() +
+  ggtitle("C")+
+  ylab("Dissolved Oxygen (mg/L)")+
+  xlab("") +
+   theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7), legend.position = "none",
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0.1), 
+                           "cm"))
+```
+
+
+#### Stability
+
+```{r}
+MB_bathy <- approx.bathy(Zmax = 5.0, lkeArea= 78000000, Zmean = 2.8, method = "voldev", zinterval = 0.5) #Approximates bathymetry (Cone or Voldev)
+
+names(MB_bathy)[2] <- "areas" #Needs this column name to work with rlakeanalyzer
+
+MB_Schmidt <- MB_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  group_by(Depth, datetime, Month, Day, Year, Group) %>%
+  summarize(Temp_C = mean(Temp_C)) %>%
+  group_by(datetime, Group) %>%
+  mutate(SS = schmidt.stability(wtr = Temp_C, depths = Depth, bthA = MB_bathy$areas, bthD = MB_bathy$depths)) %>%
+  select(datetime, SS, Group) %>%
+  unique()
+
+MB_SS <- MB_Schmidt %>%
+  filter(SS >= 0) %>%
+  ggplot(aes(x=datetime, y=SS, group=Group)) +
+     annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-08-07 00:00:00"), ymin = 0, ymax = 140,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-07 00:00:00"), xmax = as_datetime("2021-08-12 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-12 00:00:00"), xmax = as_datetime("2021-08-20 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-20 00:00:00"), xmax = as_datetime("2021-08-24 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-08-24 00:00:00"), xmax = as_datetime("2021-09-03 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-03 00:00:00"), xmax = as_datetime("2021-09-15 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-09-15 00:00:00"), xmax = as_datetime("2021-09-27 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax =140,
+           fill = "grey98") +
+   annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=145, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-09 12:00:00"), y=135, label="E1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-15 00:00:00"), y=145, label="PB1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-22 00:00:00"), y=135, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-28 00:00:00"), y=145, label="E2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-07 00:00:00"), y=135, label="PB2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-18 00:00:00"), y=145, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-30 12:00:00"), y=135, label="PoB",
+           color="black", size=1.4) +
+  geom_line()+
+  theme_classic()+ 
+  ylab(bquote('Schmidt Stability (J/m'^2~")")) +
+  xlab("")+
+  ggtitle("E")+
+  scale_y_continuous(limits = c(0, 145), breaks = seq(0, 145, by = 20)) +
+    theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7),
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0.1), 
+                           "cm"))
+  
+```
+
+#### Stream Gauge Flow
+```{r}
+Precip_Data_MR <- importRDB1("https://nwis.waterservices.usgs.gov/nwis/iv/?sites=04294000&parameterCd=00060&startDT=2017-06-01T00:00:00.000-04:00&endDT=2021-10-31T23:59:59.999-04:00&siteStatus=all&format=rdb") %>%
+  mutate(Year = year(datetime),
+         Month = month(datetime),
+         Day = day(datetime)) %>%
+  group_by(Day, Month, Year) %>%
+  summarise(Avg_SF = mean(X67399_00060)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  filter(Month >= 6 & Month <= 11 & Year == 2021)
+
+
+Precip_Data_RR <- importRDB1("https://nwis.waterservices.usgs.gov/nwis/iv/?sites=04294140&parameterCd=00060&startDT=2017-06-01T00:00:00.000-04:00&endDT=2021-10-31T23:59:59.999-04:00&siteStatus=all&format=rdb") %>%
+  mutate(Year = year(datetime),
+         Month = month(datetime),
+         Day = day(datetime)) #%>%
+  group_by(Day, Month, Year) %>%
+  summarise(Avg_SF = mean(X67402_00060)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  filter(Month >= 6 & Month <= 11 & Year == 2021)
+
+
+Precip_Data_MB <- full_join(Precip_Data_RR, Precip_Data_MR) %>%
+  group_by(Day, Month, Year, Date) %>%
+  summarise(Sum_SF = sum(Avg_SF))
+
+
+MB_SF <- Precip_Data_MB %>%
+  ggplot(aes(x=Date, y=Sum_SF))+
+   annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-08-07"), ymin = 0, ymax = 2500,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-07"), xmax = as.Date("2021-08-12"), ymin = 0, ymax =2500,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-12"), xmax = as.Date("2021-08-20"), ymin = 0, ymax = 2500,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-20"), xmax = as.Date("2021-08-24"), ymin = 0, ymax = 2500,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-08-24"), xmax = as.Date("2021-09-03"), ymin = 0, ymax = 2500,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-03"), xmax = as.Date("2021-09-15"), ymin = 0, ymax = 2500,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-09-15"), xmax = as.Date("2021-09-27"), ymin = 0, ymax = 2500,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 2500,
+           fill = "grey98") +
+  annotate(geom="text", x= as.Date("2021-06-05"), y=2575, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-08-10"), y=2425, label="E1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-08-15"), y=2575, label="PB1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-08-22"), y=2425, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-08-28"), y=2575, label="E2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-09-07"), y=2425, label="PB2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-09-18"), y=2575, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-10-01"), y=2425, label="PoB",
+           color="black", size=1.4) +
+  geom_line(linewidth=1)+
+  theme_classic()+ 
+  ylab(bquote('Stream Gauge Flow (ft'^3~"/s)")) +
+  xlab("") +
+  ggtitle("I")+
+   theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7),
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0.1), 
+                           "cm"))
+
+
+## Identifying rain event in late June that delivered LOTs OF NUTRIENTS. 
+precip_MB <- Precip_Data_MB %>%
+  mutate(month = month(Date)) %>%
+  filter(month == 8) #%>%
+  ggplot(aes(x=Date, y=Sum_SF))+
+   geom_line(linewidth=1)+
+  theme_classic()
+  
+
+```
+
+
+#### Wind Speed and Direction
+```{r}
+MB_Met <- read_csv("./Clean Data/MB_Met_Clean.csv") %>%
+  select(Year, Month, Day, Datetime, Wind_Direction, Wind_Speed, Temperature, PAR, Temp1) %>%
+  filter(Year == 2021) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  mutate(Group = if_else(Date < as.Date("2021-09-30"), 1, 0),
+         Group = if_else(Date >= as.Date("2021-10-11"), 2, Group)) %>%
+  filter(Group != 0)
+
+MB21Wind <- MB_Met %>%
+  filter(Month>=6 & Month < 11) %>%
+  filter(Year == 2021) %>%
+  ggplot(aes(x=Datetime, y=Wind_Speed, group=Group)) +
+   annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-08-07 00:00:00"), ymin = 0, ymax = 10,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-07 00:00:00"), xmax = as_datetime("2021-08-12 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-12 00:00:00"), xmax = as_datetime("2021-08-20 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-20 00:00:00"), xmax = as_datetime("2021-08-24 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-08-24 00:00:00"), xmax = as_datetime("2021-09-03 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-03 00:00:00"), xmax = as_datetime("2021-09-15 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey98") +
+    annotate("rect", xmin = as_datetime("2021-09-15 00:00:00"), xmax = as_datetime("2021-09-27 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey91") +
+    annotate("rect", xmin = as_datetime("2021-09-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax =10,
+           fill = "grey98") +
+  annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=10.25, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-09 12:00:00"), y=9.75, label="E1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-15 00:00:00"), y=10.25, label="PB1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-22 00:00:00"), y=9.75, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-28 00:00:00"), y=10.25, label="E2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-07 00:00:00"), y=9.75, label="PB2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-18 00:00:00"), y=10.25, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-30 12:00:00"), y=9.75, label="PoB",
+           color="black", size=1.4) +
+  geom_spline(linewidth=0.5) +
+  theme_classic() +
+  ggtitle("G") +
+  ylab("Wind Speed (m/s)") +
+  ylim(0,10.5) +
+  xlab("") +
+  #scale_x_date(breaks=pretty_breaks(n=6)) +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8),
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7),
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0.1), 
+                           "cm"))
+
+```
+
+
+## Nutrient Plots: 
+
+Loading Nutrient Data from the Libraries/Data Script. 
+
+```{r}
+
+### Load Data
+
+Nut_Fig_Data <- All_Combined %>%
+  select(-Anatoxin, -Microcystin)
+
+
+```
+
+
+# Making Nutrient Figures
+```{r}
+
+
+## Missisquoi Bay
+
+
+# Phosphorus
+
+MB_P <- Nut_Fig_Data %>%
+  filter(Station == "MB") %>%
+  select(Location, Date, Water_TP_mgL) %>%
+  mutate(Water_TP_ugL = Water_TP_mgL * 1000) %>%
+  group_by(Location, Date) %>%
+  summarize(Water_TP_ugL = mean(Water_TP_ugL)) %>%
+  pivot_wider(names_from="Location", values_from = "Water_TP_ugL") %>%
+  select(-IWC) %>%
+  na.omit()
+
+MB_SesP <- Nut_Fig_Data %>%
+  select(SestonP_ugL, Date, Station) %>%
+  filter(Station == "MB") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  dplyr::summarize(SestonP_ugL = mean(SestonP_ugL))
+
+MB_P <- full_join(MB_P, MB_SesP, by=c("Date")) %>%
+  pivot_longer(cols=c("SestonP_ugL", "bottom", "surface"), names_to = "Location", values_to = "TP_ugL") %>%
+  mutate(Location = if_else(Location == "bottom", "Water TP - 2.5m", Location),
+         Location = if_else(Location == "surface", "Water TP - 0.5m", Location),
+         Location = if_else(Location == "SestonP_ugL", "Seston TP - IWC", Location))
+
+MB_P_Fig <- MB_P %>%
+  mutate(Date=as.Date(Date))%>%
+  filter(Date > as.Date("2021-06-01") & Date <= as.Date("2021-11-01")) %>%
+  ggplot() + 
+  annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-08-07"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-07"), xmax = as.Date("2021-08-12"), ymin = 0, ymax =200,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-12"), xmax = as.Date("2021-08-20"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-20"), xmax = as.Date("2021-08-24"), ymin = 0, ymax = 200,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-08-24"), xmax = as.Date("2021-09-03"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-03"), xmax = as.Date("2021-09-15"), ymin = 0, ymax = 200,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-09-15"), xmax = as.Date("2021-09-27"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 200,
+           fill = "grey98") +
+  geom_line(aes(x = Date, y = TP_ugL, color=Location), size = 0.75) + 
+  geom_point(aes(x=Date, y=TP_ugL, shape=Location, color=Location), fill="white", size=1) +
+  scale_color_manual(values=c("indianred", "darkolivegreen4", "darkolivegreen4"))+
+  scale_shape_manual(values=c(21, 22, 24))+
+  ylim(0,200) +
+  theme_classic() +
+  ylab(expression(paste("Phosphorus (",~ mu, "g/L)")))+
+  xlab("Date") +
+  ggtitle("E") +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7)) #+
+  scale_x_date(breaks = scales::breaks_pretty(10))
+
+
+
+
+## Nitrogen
+
+MB_N <- Nut_Fig_Data %>%
+  filter(Station == "MB") %>%
+  select(Location, Date, Water_TN_mgL) %>%
+  group_by(Location, Date) %>%
+  summarize(Water_TN_mgL = mean(Water_TN_mgL)) %>%
+  pivot_wider(names_from="Location", values_from = "Water_TN_mgL") %>%
+  select(-IWC) %>%
+  na.omit()
+
+MB_TDN <- Nut_Fig_Data %>%
+  select(Water_TDN_mgL, Date, Station) %>%
+  filter(Station == "MB") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(Water_TDN_mgL = mean(Water_TDN_mgL))
+
+
+MB_SesN <- Nut_Fig_Data %>%
+  select(N_mgL, Date, Station) %>%
+  filter(Station == "MB") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(N_mgL = mean(N_mgL))
+
+MB_N <- full_join(MB_N, MB_SesN, by=c("Date")) %>%
+  full_join(., MB_TDN, by=c("Date")) %>%
+  pivot_longer(cols=c("N_mgL", "bottom", "surface", "Water_TDN_mgL"), names_to = "Location", values_to = "TN_mgL") %>%
+  mutate(Location = if_else(Location == "bottom", "Water TN - 2.5m", Location),
+         Location = if_else(Location == "surface", "Water TN - 0.5m", Location),
+         Location = if_else(Location == "N_mgL", "Seston TN - IWC", Location),
+         Location = if_else(Location == "Water_TDN_mgL", "Water TDN - IWC", Location))
+MB_N_Fig <- MB_N %>%
+  mutate(Date=as.Date(Date))%>%
+  filter(Date > as.Date("2021-06-01") & Date <= as.Date("2021-11-01")) %>%
+  ggplot() + 
+    annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-08-07"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-07"), xmax = as.Date("2021-08-12"), ymin = 0, ymax =2.6,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-12"), xmax = as.Date("2021-08-20"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-20"), xmax = as.Date("2021-08-24"), ymin = 0, ymax = 2.6,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-08-24"), xmax = as.Date("2021-09-03"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-03"), xmax = as.Date("2021-09-15"), ymin = 0, ymax = 2.6,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-09-15"), xmax = as.Date("2021-09-27"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 2.6,
+           fill = "grey98") +
+  geom_line(aes(x = Date, y = TN_mgL, color=Location), size = 0.75) + 
+  geom_point(aes(x=Date, y=TN_mgL, shape=Location, color=Location), fill="white", size=1) +
+  scale_color_manual(values=c("indianred", "dodgerblue4", "darkolivegreen4", "darkolivegreen4"))+
+  scale_shape_manual(values=c(21, 21, 22, 24))+
+  ylim(0,2.6) +
+  theme_classic() +
+  ylab("Nitrogen (mg/L)")+
+  xlab("") +
+  ggtitle("C") +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7))# +
+  scale_x_date(breaks = scales::breaks_pretty(10))
+
+
+## Carbon
+
+
+MB_C <- Nut_Fig_Data %>%
+  filter(Station == "MB") %>%
+  select(Date,  Water_DOC_mgL)%>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(Water_DOC_mgL = mean(Water_DOC_mgL))
+
+MB_SesC <- Nut_Fig_Data %>%
+  select(C_mgL, Date, Station) %>%
+  filter(Station == "MB") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(C_mgL = mean(C_mgL))
+
+MB_C <- full_join(MB_C, MB_SesC, by=c("Date")) %>%
+  pivot_longer(cols=c("C_mgL", "Water_DOC_mgL"), names_to = "Location", values_to = "C_mgL") %>%
+  mutate(Location = if_else(Location == "Water_DOC_mgL", "Water DOC - IWC", Location),
+         Location = if_else(Location == "C_mgL", "Seston C - IWC", Location))
+
+MB_C_Fig <- MB_C %>%
+  mutate(Date=as.Date(Date))%>%
+  filter(Date > as.Date("2021-06-01") & Date <= as.Date("2021-11-01")) %>%
+  ggplot() + 
+    annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-08-07"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-07"), xmax = as.Date("2021-08-12"), ymin = 0, ymax =8.5,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-12"), xmax = as.Date("2021-08-20"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-20"), xmax = as.Date("2021-08-24"), ymin = 0, ymax = 8.5,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-08-24"), xmax = as.Date("2021-09-03"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-03"), xmax = as.Date("2021-09-15"), ymin = 0, ymax = 8.5,
+           fill = "grey98") +
+    annotate("rect", xmin = as.Date("2021-09-15"), xmax = as.Date("2021-09-27"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+    annotate("rect", xmin = as.Date("2021-09-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 8.5,
+           fill = "grey98") +
+  geom_line(aes(x = Date, y = C_mgL, color=Location), size = 0.75) + 
+  geom_point(aes(x=Date, y=C_mgL, shape=Location, color=Location), fill="white", size=1) +
+  scale_color_manual(values=c("indianred", "dodgerblue4"))+
+  scale_shape_manual(values=c(21, 21))+
+  ylim(0,8.5) +
+  theme_classic() +
+  ylab("Carbon (mg/L)")+
+  xlab("") +
+  ggtitle("A") +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7)) #+
+  scale_x_date(breaks = scales::breaks_pretty(10))
+
+
+## Make these plots in Figure Sheet.
+```
+
+### St. Albans Bay
+
+#### Temperature
+
+```{r}
+SA_Profiler <- read_csv("./Clean Data/SA_Profiler_2021_Clean.csv") %>%
+  filter(Month >= 6 & Month < 11) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  mutate(Group = if_else(Date >= as.Date("2021-06-17") & Date <= as.Date("2021-08-20"), 1, 0),
+         Group = if_else(Date >= as.Date("2021-08-21") & Date <= as.Date("2021-09-06"), 2, Group),
+         Group = if_else(Date >= as.Date("2021-09-08") & Date <= as.Date("2021-10-01"), 3, Group),
+         Group = if_else(Date == as.Date("2021-10-04"), 4, Group),
+         Group = if_else(Date >= as.Date("2021-10-06") & Date <= as.Date("2021-10-14"), 5, Group),
+         Group = if_else(Date >= as.Date("2021-10-18") & Date <= as.Date("2021-10-21"), 6, Group),
+         Group = if_else(Date >= as.Date("2021-10-23") & Date <= as.Date("2021-10-25"), 7, Group),
+         Group = if_else(Date >= as.Date("2021-10-28") & Date <= as.Date("2021-10-30"), 8, Group)) %>%
+  select(-Date, -Remove)
+
+
+SA_Temp <- SA_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  filter(Depth == 0.5 | Depth == 4.5) %>%
+  group_by(Depth, datetime, Group) %>%
+  summarize(Temp_C = mean(Temp_C)) %>%
+  mutate(Depth = as.character(Depth)) %>%
+  ggplot(aes(x=datetime, y=Temp_C, color=Depth, group=Group)) + 
+ annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-07-11 00:00:00"), ymin = 0, ymax = 30,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-11 00:00:00"), xmax = as_datetime("2021-07-15 00:00:00"), ymin = 0, ymax =30,fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-07-15 00:00:00"), xmax = as_datetime("2021-07-27 00:00:00"), ymin = 0, ymax = 30,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-27 00:00:00"), xmax = as_datetime("2021-08-16 00:00:00"), ymin = 0, ymax = 30, fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-16 00:00:00"), xmax = as_datetime("2021-08-27 00:00:00"), ymin = 0, ymax = 30, fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax = 30, fill = "grey98") +
+  annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=31, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-12 00:00:00"), y=31, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-18 00:00:00"), y=31, label="E",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-30 00:00:00"), y=31, label="PB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-20 00:00:00"), y=31, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-01 00:00:00"), y=31, label="PoB",
+           color="black", size=1.4) +
+  geom_line(size = 0.5) + 
+  scale_color_manual(values=c("orangered3", "dodgerblue3"))+
+  theme_classic() +
+  ggtitle("B")+
+  ylab("")+
+  xlab("") +
+  xlim(as_datetime("2021-06-01 00:00:00"), as_datetime("2021-10-31 23:59:59")) +
+    theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7), legend.position = "none",
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0), 
+                           "cm"))
+
+```
+
+# Dissolved Oxygen
+
+```{r}
+
+SA_DO <- SA_Profiler %>%
+  select(Depth, datetime, ODOmgL, Month, Day, Year, Group) %>%
+  filter(Depth == 0.5 | Depth == 4.5) %>%
+  group_by(Depth, datetime, Group) %>%
+  summarize(DO = mean(ODOmgL)) %>%
+  mutate(Depth = as.character(Depth)) %>%
+  ggplot(aes(x=datetime, y=DO, color=Depth, group=Group)) +
+    annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-07-11 00:00:00"), ymin = 0, ymax = 20,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-11 00:00:00"), xmax = as_datetime("2021-07-15 00:00:00"), ymin = 0, ymax =20,fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-07-15 00:00:00"), xmax = as_datetime("2021-07-27 00:00:00"), ymin = 0, ymax = 20,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-27 00:00:00"), xmax = as_datetime("2021-08-16 00:00:00"), ymin = 0, ymax = 20, fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-16 00:00:00"), xmax = as_datetime("2021-08-27 00:00:00"), ymin = 0, ymax = 20, fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax = 20, fill = "grey98") +
+  annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=20.6, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-12 00:00:00"), y=20.6, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-18 00:00:00"), y=20.6, label="E",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-30 00:00:00"), y=20.6, label="PB",
+           color="black", size=1.4)+
+  annotate(geom="text", x= as_datetime("2021-08-20 00:00:00"), y=20.6, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-01 00:00:00"), y=20.6, label="PoB",
+           color="black", size=1.4) +
+  geom_line(size = 0.5) + 
+  scale_color_manual(values=c("orangered3", "dodgerblue3"))+
+  theme_classic() +
+  ggtitle("D")+
+  ylab("")+
+  xlab("") +
+   theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7), legend.position = "none",
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0), 
+                           "cm"))
+```
+#### Stability
+
+```{r}
+SA_bathy <- approx.bathy(Zmax = 12, lkeArea= 7200000, Zmean = 8, method = "voldev", zinterval = 0.5) #Approximates bathymetry (Cone or Voldev)
+names(SA_bathy)[2] <- "areas" #Needs this column name to work with rlakeanalyzer
+
+
+SA_Schmidt <- SA_Profiler %>%
+  select(Depth, datetime, Temp_C, Month, Day, Year, Group) %>%
+  group_by(Depth, datetime, Month, Day, Year, Group) %>%
+  summarize(Temp_C = mean(Temp_C)) %>%
+  group_by(datetime, Group) %>%
+  mutate(SS = schmidt.stability(wtr = Temp_C, depths = Depth, bthA = SA_bathy$areas, bthD = SA_bathy$depths)) %>%
+  select(datetime, SS, Group) %>%
+  unique()
+
+SA_SS <- SA_Schmidt %>%
+  mutate(SS = if_else(SS < 0, 0, SS))  %>%
+  ggplot(aes(x=datetime, y=SS, group=Group)) +
+     annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-07-11 00:00:00"), ymin = 0, ymax = 140,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-11 00:00:00"), xmax = as_datetime("2021-07-15 00:00:00"), ymin = 0, ymax =140,fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-07-15 00:00:00"), xmax = as_datetime("2021-07-27 00:00:00"), ymin = 0, ymax = 140,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-27 00:00:00"), xmax = as_datetime("2021-08-16 00:00:00"), ymin = 0, ymax = 140, fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-16 00:00:00"), xmax = as_datetime("2021-08-27 00:00:00"), ymin = 0, ymax = 140, fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax = 140, fill = "grey98") +
+  annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=145, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-12 00:00:00"), y=145, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-18 00:00:00"), y=145, label="E",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-30 00:00:00"), y=145, label="PB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-20 00:00:00"), y=145, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-01 00:00:00"), y=145, label="PoB",
+           color="black", size=1.4) +
+  geom_line()+
+  theme_classic()+ 
+  ylab(bquote('')) +
+  xlab("") +
+  ggtitle("F")+
+  scale_y_continuous(limits = c(0, 145), breaks = seq(0, 145, by = 20)) +
+  xlim(as_datetime("2021-06-01 00:00:00"), as_datetime("2021-10-31 23:59:59")) +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7),
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0), 
+                           "cm"))
+ 
+```
+
+#### Stream Gauge Flow
+```{r}
+
+SA_SF_MR <- dataRetrieval::importRDB1("https://nwis.waterservices.usgs.gov/nwis/iv/?sites=04292750&parameterCd=00060&startDT=2017-06-01T00:00:00.000-04:00&endDT=2021-10-31T23:59:59.999-04:00&siteStatus=all&format=rdb")  %>%
+  mutate(Year = year(datetime),
+         Month = month(datetime),
+         Day = day(datetime)) %>%
+  dplyr::group_by(Day, Month, Year) %>%
+  dplyr::summarise(Avg_SF = mean(X67354_00060)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  filter(Month >= 6 & Month <= 11)
+
+SA_SF_JB <- dataRetrieval::importRDB1("https://nwis.waterservices.usgs.gov/nwis/iv/?sites=04292810&parameterCd=00060&startDT=2017-06-01T00:00:00.000-04:00&endDT=2021-10-31T23:59:59.999-04:00&siteStatus=all&format=rdb")  %>%
+  mutate(Year = year(datetime),
+         Month = month(datetime),
+         Day = day(datetime)) %>%
+  dplyr::group_by(Day, Month, Year) %>%
+  dplyr::summarise(Avg_SF = mean(X67363_00060)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  filter(Month >= 6 & Month <= 11)
+
+
+Precip_Data_SA <- full_join(SA_SF_MR, SA_SF_JB) %>%
+  group_by(Day, Month, Year, Date) %>%
+  summarise(Sum_SF = sum(Avg_SF))
+
+
+SA_SF <- Precip_Data_SA %>%
+  filter(Year == 2021) %>%
+  ggplot(aes(x=Date, y=Sum_SF))+
+ annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-07-11"), ymin = 0, ymax = 400,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-11"), xmax = as.Date("2021-07-15"), ymin = 0, ymax =400,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-07-15"), xmax = as.Date("2021-07-27"), ymin = 0, ymax = 400,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-27"), xmax = as.Date("2021-08-16"), ymin = 0, ymax = 400,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-16"), xmax = as.Date("2021-08-27"), ymin = 0, ymax = 400,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 400,
+           fill = "grey98") +
+  annotate(geom="text", x= as.Date("2021-06-05"), y=410, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-07-12"), y=410, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-07-18"), y=410, label="E",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-07-30"), y=410, label="PB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-08-20"), y=410, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as.Date("2021-09-01"), y=410, label="PoB",
+           color="black", size=1.4) +
+  geom_line(linewidth=1)+
+  theme_classic()+ 
+  ylab("") +
+  xlab("") +
+  ggtitle("J")+
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7),
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0), 
+                           "cm"))
+
+
+## identifying early june nitrogen delivery source
+
+precip_SA <- Precip_Data_SA %>%
+  mutate(month = month(Date)) %>%
+  filter(Year == 2021) %>%
+  filter(month == 8) %>%
+  ggplot(aes(x=Date, y=Sum_SF))+
+   geom_line(linewidth=1)+
+  theme_classic()
+
+```
+
+#### Wind Speed and Direction
+```{r}
+SA_Met <- read_csv("./Clean Data/SA_Met_Clean.csv") %>%
+  select(Year, Month, Datetime, Wind_Dir, Wind_Speed_m.s, Temp) %>%
+  filter(Year == 2021)
+
+SA21Wind <- SA_Met %>%
+  filter(Month>=6 & Month < 11) %>%
+  filter(Year == 2021) %>%
+  ggplot(aes(x=Datetime, y=Wind_Speed_m.s)) +
+   annotate("rect", xmin = as_datetime("2021-06-01 00:00:00"), xmax = as_datetime("2021-07-11 00:00:00"), ymin = 0, ymax = 10,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-11 00:00:00"), xmax = as_datetime("2021-07-15 00:00:00"), ymin = 0, ymax =10,fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-07-15 00:00:00"), xmax = as_datetime("2021-07-27 00:00:00"), ymin = 0, ymax = 10,fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-07-27 00:00:00"), xmax = as_datetime("2021-08-16 00:00:00"), ymin = 0, ymax = 10, fill = "grey98") +
+  annotate("rect", xmin = as_datetime("2021-08-16 00:00:00"), xmax = as_datetime("2021-08-27 00:00:00"), ymin = 0, ymax = 10, fill = "grey91") +
+  annotate("rect", xmin = as_datetime("2021-08-27 00:00:00"), xmax = as_datetime("2021-10-31 00:00:00"), ymin = 0, ymax = 10, fill = "grey98") +
+  annotate(geom="text", x= as_datetime("2021-06-05 00:00:00"), y=10.25, label="PrB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-12 00:00:00"), y=10.25, label="BC1",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-18 00:00:00"), y=10.25, label="E",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-07-30 00:00:00"), y=10.25, label="PB",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-08-20 00:00:00"), y=10.25, label="BC2",
+           color="black", size=1.4) +
+  annotate(geom="text", x= as_datetime("2021-09-01 00:00:00"), y=10.25, label="PoB",
+           color="black", size=1.4) +
+  geom_spline(linewidth=0.5) +
+  theme_classic() +
+  ggtitle("H") +
+  ylab("") +
+  ylim(0,10.5) +
+  xlab("") +
+  #scale_x_date(breaks=pretty_breaks(n=6)) +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7),
+        plot.title = element_text(size=9),
+        plot.margin = unit(c(0, 0, 0, 0), 
+                           "cm"))
+
+```
+
+
+## Nutrient Plots: 
+
+```{r}
+
+## St. Albans Bay
+
+# Phosphorus
+
+SA_P <- Nut_Fig_Data %>%
+  filter(Station == "SA") %>%
+  select(Location, Date, Water_TP_mgL) %>%
+  mutate(Water_TP_ugL = Water_TP_mgL * 1000) %>%
+  group_by(Location, Date) %>%
+  summarize(Water_TP_ugL = mean(Water_TP_ugL)) %>%
+  pivot_wider(names_from="Location", values_from = "Water_TP_ugL") %>%
+  select(-IWC) %>%
+  na.omit()
+
+SA_SesP <- Nut_Fig_Data %>%
+  select(SestonP_ugL, Date, Station) %>%
+  filter(Station == "SA") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  dplyr::summarize(SestonP_ugL = mean(SestonP_ugL))
+
+SA_P <- full_join(SA_P, SA_SesP, by=c("Date")) %>%
+  pivot_longer(cols=c("SestonP_ugL", "bottom", "surface"), names_to = "Location", values_to = "TP_ugL") %>%
+  mutate(Location = if_else(Location == "bottom", "Water TP - 4.5m", Location),
+         Location = if_else(Location == "surface", "Water TP - 0.5m", Location),
+         Location = if_else(Location == "SestonP_ugL", "Seston TP - IWC", Location))
+
+SA_P_Fig <- SA_P %>%
+  mutate(Date=as.Date(Date))%>%
+  filter(Date > as.Date("2021-06-01") & Date <= as.Date("2021-11-01")) %>%
+  ggplot() + 
+  annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-07-11"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-11"), xmax = as.Date("2021-07-15"), ymin = 0, ymax =200,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-07-15"), xmax = as.Date("2021-07-27"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-27"), xmax = as.Date("2021-08-16"), ymin = 0, ymax = 200,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-16"), xmax = as.Date("2021-08-27"), ymin = 0, ymax = 200,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 200,
+           fill = "grey98") +
+  geom_line(aes(x = Date, y = TP_ugL, color=Location), size = 0.75) + 
+  geom_point(aes(x=Date, y=TP_ugL, shape=Location, color=Location), fill="white", size=1) +
+  scale_color_manual(values=c("indianred", "darkolivegreen4", "darkolivegreen4"))+
+  scale_shape_manual(values=c(21, 22, 24))+
+  theme_classic() +
+  ylim(0, 200) +
+  ylab("")+
+  xlab("Date") +
+  ggtitle("F") +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7))# +
+  scale_x_date(breaks = scales::breaks_pretty(5))
+
+
+
+
+## Nitrogen
+
+SA_N <- Nut_Fig_Data %>%
+  filter(Station == "SA") %>%
+  select(Location, Date, Water_TN_mgL) %>%
+  group_by(Location, Date) %>%
+  summarize(Water_TN_mgL = mean(Water_TN_mgL)) %>%
+  pivot_wider(names_from="Location", values_from = "Water_TN_mgL") %>%
+  select(-IWC) %>%
+  na.omit()
+
+SA_TDN <- Nut_Fig_Data %>%
+  select(Water_TDN_mgL, Date, Station) %>%
+  filter(Station == "SA") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(Water_TDN_mgL = mean(Water_TDN_mgL))
+
+
+SA_SesN <- Nut_Fig_Data %>%
+  select(N_mgL, Date, Station) %>%
+  filter(Station == "SA") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(N_mgL = mean(N_mgL))
+
+SA_N <- full_join(SA_N, SA_SesN, by=c("Date")) %>%
+  full_join(., SA_TDN, by=c("Date")) %>%
+  pivot_longer(cols=c("N_mgL", "bottom", "surface", "Water_TDN_mgL"), names_to = "Location", values_to = "TN_mgL") %>%
+  mutate(Location = if_else(Location == "bottom", "Water TN - 4.5m", Location),
+         Location = if_else(Location == "surface", "Water TN - 0.5m", Location),
+         Location = if_else(Location == "N_mgL", "Seston TN - IWC", Location),
+         Location = if_else(Location == "Water_TDN_mgL", "Water TDN - IWC", Location))
+
+SA_N_Fig <- SA_N %>%
+  mutate(Date=as.Date(Date))%>%
+  filter(Date > as.Date("2021-06-01") & Date <= as.Date("2021-11-01")) %>%
+  ggplot() + 
+   annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-07-11"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-11"), xmax = as.Date("2021-07-15"), ymin = 0, ymax =2.6,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-07-15"), xmax = as.Date("2021-07-27"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-27"), xmax = as.Date("2021-08-16"), ymin = 0, ymax = 2.6,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-16"), xmax = as.Date("2021-08-27"), ymin = 0, ymax = 2.6,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 2.6,
+           fill = "grey98") +
+  geom_line(aes(x = Date, y = TN_mgL, color=Location), size = 0.75) + 
+  geom_point(aes(x=Date, y=TN_mgL, shape=Location, color=Location), fill="white", size=1) +
+  scale_color_manual(values=c("indianred", "dodgerblue4", "darkolivegreen4", "darkolivegreen4"))+
+  scale_shape_manual(values=c(21, 21, 22, 24))+
+  theme_classic() +
+  ylim(0, 2.6) +
+  ylab("")+
+  xlab("") +
+  ggtitle("D") +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7))# +
+  scale_x_date(breaks = scales::breaks_pretty(10))
+
+
+## Carbon
+
+
+SA_C <- Nut_Fig_Data %>%
+  filter(Station == "SA") %>%
+  select(Date,  Water_DOC_mgL)%>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(Water_DOC_mgL = mean(Water_DOC_mgL))
+
+SA_SesC <- Nut_Fig_Data %>%
+  select(C_mgL, Date, Station) %>%
+  filter(Station == "SA") %>%
+  na.omit() %>%
+  group_by(Date) %>%
+  summarize(C_mgL = mean(C_mgL))
+
+SA_C <- full_join(SA_C, SA_SesC, by=c("Date")) %>%
+  pivot_longer(cols=c("C_mgL", "Water_DOC_mgL"), names_to = "Location", values_to = "C_mgL") %>%
+  mutate(Location = if_else(Location == "Water_DOC_mgL", "Water DOC - IWC", Location),
+         Location = if_else(Location == "C_mgL", "Seston C - IWC", Location))
+
+SA_C_Fig <- SA_C %>%
+  mutate(Date=as.Date(Date))%>%
+  filter(Date > as.Date("2021-06-01") & Date <= as.Date("2021-11-01")) %>%
+  ggplot() + 
+   annotate("rect", xmin = as.Date("2021-06-01"), xmax = as.Date("2021-07-11"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-11"), xmax = as.Date("2021-07-15"), ymin = 0, ymax =8.5,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-07-15"), xmax = as.Date("2021-07-27"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-07-27"), xmax = as.Date("2021-08-16"), ymin = 0, ymax = 8.5,
+           fill = "grey98") +
+  annotate("rect", xmin = as.Date("2021-08-16"), xmax = as.Date("2021-08-27"), ymin = 0, ymax = 8.5,
+           fill = "grey91") +
+  annotate("rect", xmin = as.Date("2021-08-27"), xmax = as.Date("2021-10-31"), ymin = 0, ymax = 8.5,
+           fill = "grey98") +
+  geom_line(aes(x = Date, y = C_mgL, color=Location), size = 0.75) + 
+  geom_point(aes(x=Date, y=C_mgL, shape=Location, color=Location), fill="white", size=1) +
+  scale_color_manual(values=c("indianred", "dodgerblue4"))+
+  scale_shape_manual(values=c(21, 21))+
+  theme_classic() +
+  ylim(0,8.5) +
+  ylab("")+
+  xlab("") +
+  ggtitle("B") +
+  theme(axis.title = element_text(size=8), axis.text=element_text(size=7),
+        legend.title = element_text(size = 8), 
+        legend.key.size = unit(0.5, 'cm'), legend.text = element_text(size=7))# +
+  scale_x_date(breaks = scales::breaks_pretty(10))
+
+
+## Make these plots in Figure Sheet.
+```
+
+
+# Hierarchical Clustering for Cyanobacteria Bloom Stages: 
+
+## Phycocyanin, CHL, Rate of Change, and 3 day prior conditions for Clustering, pH, Turbidity. 
+
+
+## Missisquoi Bay.
+```{r}
+
+#### Phycocyanin
+
+MB_PC_Matrix <- MB_Profiler %>%
+  filter(Month > 6 & Month < 10) %>%
+  select(PC_RFU, pH, Day, Month, Year, Chl_RFU) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  group_by(Date) %>%
+  summarize(PC = mean(PC_RFU),
+            pH = mean(pH), 
+            CHL = mean(Chl_RFU)) %>%
+  mutate(Lag3_PC = lag(PC, n=3L),
+         Lag3_CHL = lag(CHL, n=3L),
+         Lag1_PC = lag(PC),
+         Lag1_CHL = lag(CHL)) %>%
+  na.omit() %>%
+  mutate(ROC_PC = (PC-Lag1_PC)/Lag1_PC, 
+         ROC_CHL = (CHL-Lag1_CHL)/Lag1_CHL) %>%
+  select(Date, PC, CHL, Lag3_PC, Lag3_CHL, ROC_PC, ROC_CHL) %>%
+  column_to_rownames(var="Date") %>% 
+  na.omit()
+
+
+library(vegan)
+### Cluster Analysis. 
+
+MB_PC_Euc <- vegdist(MB_PC_Matrix, method="euclidean")
+
+
+MB_PC_clust <- hclust(MB_PC_Euc, method="ward.D2")  
+
+## Visualize Cluster
+
+
+plot(MB_PC_clust, las = 1, 
+     main="Cluster diagram of MB PC and CHL", 
+     xlab="Date", 
+     ylab="Euclidean Distance")
+
+```
+
+## Testing number of clusters
+
+```{r}
+library(factoextra)
+
+
+# Plot cluster results
+p1_MB <- fviz_nbclust(as.matrix(MB_PC_Euc), FUN = hcut, method = "wss",  k.max = 10) +
+  ggtitle("(A) Elbow method")
+
+p2 <- fviz_nbclust(as.matrix(MB_PC_Euc), FUN = hcut, method = "silhouette", k.max = 10) +
+  ggtitle("(B) Silhouette method")
+
+p3 <- fviz_nbclust(as.matrix(MB_PC_Euc), FUN = hcut, method = "gap_stat", k.max = 10) +
+  ggtitle("(C) Gap statistic")
+
+# Display plots side by side
+MB_K <- gridExtra::grid.arrange(p1, p2, p3, nrow = 1)
+
+```
+
+```{r}
+fviz_dend(
+  MB_PC_clust,
+  k = 3,
+  horiz = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  k_colors = "jco",
+  main = "A",
+  cex = 0.75,
+  ylab = "") +
+  theme_classic()
+
+
+
+```
+
+Extracting Groups and Coloring points based on them. 
+
+```{r}
+
+cut_avg <- cutree(MB_PC_clust, k = 4)
+MB_PC <- mutate(MB_PC_Matrix, cluster = cut_avg) %>%
+  rownames_to_column(var="Date")
+
+MB_PC %>%
+  ggplot(aes(x=as_date(Date), y=PC)) +
+  geom_line(color="black") +
+  geom_point(aes(group=as.factor(cluster), color=as.factor(cluster))) +
+  theme_classic()
+  
+MB_PC %>%
+  ggplot(aes(x=as_date(Date), y=CHL)) +
+  geom_line(color="black") +
+  geom_point(aes(group=as.factor(cluster), color=as.factor(cluster))) +
+  theme_classic()
+  
+
+```
+
+This clustering method did a really nice job of highlight periods of rapid growth change - so both the rapid increase and decrease...albeit it didn't capture the second bloom collapes (when you add an additional cluster it does), but thats because it was so rapid. K=4.
+
+
+## St. Albans
+
+```{r}
+
+#### Phycocyanin
+
+SA_PC_Matrix <- SA_Profiler %>%
+  filter(Month > 5 & Month < 12) %>%
+  select(PC_RFU, pH, Day, Month, Year, Chl_RFU) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  group_by(Date) %>%
+  summarize(PC = mean(PC_RFU),
+            pH = mean(pH), 
+            CHL = mean(Chl_RFU)) %>%
+  mutate(Lag3_PC = lag(PC, n=3L),
+         Lag3_CHL = lag(CHL, n=3L),
+         Lag1_PC = lag(PC),
+         Lag1_CHL = lag(CHL)) %>%
+  na.omit() %>%
+  mutate(ROC_PC = (PC-Lag1_PC)/Lag1_PC, 
+         ROC_CHL = (CHL-Lag1_CHL)/Lag1_CHL) %>%
+  select(Date, PC, CHL, Lag3_PC, Lag3_CHL, ROC_PC, ROC_CHL, -pH) %>%
+  column_to_rownames(var="Date") %>% 
+  na.omit()
+
+
+library(vegan)
+### Cluster Analysis. 
+
+SA_PC_Euc <- vegdist(SA_PC_Matrix, method="euclidean")
+
+
+SA_PC_clust <- hclust(SA_PC_Euc, method="ward.D2")  
+
+
+
+## Visualize Cluster
+
+
+plot(SA_PC_clust, las = 1, 
+     main="Cluster diagram of MB PC and CHL", 
+     xlab="Date", 
+     ylab="Euclidean Distance")
+
+```
+
+```{r}
+fviz_dend(
+  SA_PC_clust,
+  k = 3,
+  horiz = TRUE,
+  rect = TRUE,
+  rect_fill = TRUE,
+  rect_border = "jco",
+  k_colors = "jco",
+  main = "A",
+  cex = 0.75,
+  ylab = "") +
+  theme_classic()
+
+
+
+```
+Extracting Groups and Coloring points based on them. 
+
+## Testing the number of clusters.
+
+```{r}
+library(factoextra)
+
+
+# Plot cluster results
+p1_SA <- fviz_nbclust(as.matrix(SA_PC_Euc), FUN = hcut, method = "wss",  k.max = 10) +
+  ggtitle("(A) Elbow method")
+
+p2 <- fviz_nbclust(as.matrix(SA_PC_Euc), FUN = hcut, method = "silhouette", k.max = 10) +
+  ggtitle("(B) Silhouette method")
+
+p3 <- fviz_nbclust(as.matrix(SA_PC_Euc), FUN = hcut, method = "gap_stat", k.max = 10) +
+  ggtitle("(C) Gap statistic")
+
+# Display plots side by side
+gridExtra::grid.arrange(p1, p2, nrow = 1)
+
+```
+```{r}
+cut_avg <- cutree(SA_PC_clust, k =3)
+SA_PC <- mutate(SA_PC_Matrix, cluster = cut_avg) %>%
+  rownames_to_column(var="Date")
+
+SA_PC %>%
+  ggplot(aes(x=as_date(Date), y=PC)) +
+  geom_line(color="black") +
+  geom_point(aes(group=as.factor(cluster), color=as.factor(cluster))) +
+  theme_classic()
+  
+SA_PC %>%
+  ggplot(aes(x=as_date(Date), y=CHL)) +
+  geom_line(color="black") +
+  geom_point(aes(group=as.factor(cluster), color=as.factor(cluster))) +
+  theme_classic()
+  
+
+```
+
+
+
+#### Toxic CCAs - Though this probably won't mean anything (:
+
+#### RDA Analysis on Drivers of Bloom Dynamics: 
+
+Next for this analysis, I want to specify the drivers of cyanobacteria species...
+
+- Select Cyanobacteria Species
+- Select Environmental Variables
+-- Wind Speed, Stability, Surface PAR, (DN, DP - eventually) TDN, DOC, Turbidity, Seston CN, Seston CP, MC_Q, ATX_Q
+
+
+
+## Missisquoi Bay
+
+```{r}
+
+## selecting phytoplankton that are > 5%
+
+MB_Phyto_Date <- Phytos %>%
+  filter(Station == "MB") %>%
+  select(SampleDate) %>%
+  mutate(SampleDate = ymd(SampleDate)) %>%
+  unique()
+  
+MB_Phyto_Keep <- Phytos %>%
+  filter(Station == "MB") %>%
+  group_by(Sample_ID, SampleDate, Genus) %>%
+  summarize(RA_BM = sum(RA_BM)) %>%
+  mutate(Keep = if_else(RA_BM >= 0.05, "Yes", "No")) %>%
+  ungroup() %>%
+  select(Genus, Keep) %>%
+  filter(Keep=="Yes") %>%
+  unique()
+
+MB_Phyto_Matrix <- Phytos %>%
+  filter(Taxonomic_group == "Cyanobacteria") %>%
+  filter(Station == "MB") %>%
+  filter(Genus %in% MB_Phyto_Keep$Genus) %>%
+  select(SampleDate, Genus, BM_ug.L) %>%
+  group_by(SampleDate, Genus) %>%
+  summarise(BM = sum(BM_ug.L)) %>%
+  pivot_wider(names_from = "Genus", values_from="BM") %>%
+  filter(SampleDate > as.Date("2021-06-01")) %>% 
+  mutate(SampleDate = ymd(SampleDate)) %>%
+  rename(Date = SampleDate)
+
+MB_Phyto_Matrix[is.na(MB_Phyto_Matrix)] <- 0
+
+MB_Seston_Matrix <- All_Combined %>%
+  select(SestonP_uML, SestonC_uML, SestonN_uML, Station, Date) %>%
+  filter(Station == "MB") %>%
+  unique() %>%
+  mutate(Seston_CP = SestonC_uML/SestonP_uML,
+         Seston_CN = SestonC_uML/SestonN_uML, 
+         Seston_NP = SestonN_uML/SestonP_uML) %>%
+  na.omit() %>%
+  select(-SestonP_uML, -SestonC_uML, -SestonN_uML, -Station) %>%
+  mutate(Date = ymd(Date)) %>%
+    filter(Date %in% MB_Phyto_Date$SampleDate)
+
+## Weather Matrix
+
+MB_Wind_RDA <- MB_Met %>%
+  select(Wind_Speed, Wind_Direction, Date) %>%
+  filter(Date %in% MB_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(Wind_Speed = mean(Wind_Speed),
+            Wind_Direction = mean(Wind_Direction))
+
+MB_SS_RDA <- MB_Schmidt %>%
+  select(SS, Date) %>%
+  filter(Date %in% MB_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(SS = mean(SS))
+
+
+# Water Temp
+
+MB_WT_RDA <- MB_Profiler %>%
+  select(Temp_C, Date) %>%
+  filter(Date %in% MB_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(Temp_C = mean(Temp_C))
+
+# Sum Stream Flow
+MB_SF_RDA <- MB_SF_Stats %>%
+  dplyr::select(Sum_SF, Date) %>%
+  filter(Date %in% MB_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(Sum_SF = mean(Sum_SF)) 
+
+## Dissolved Nutrients. 
+
+DissNut_S <- read_xlsx("./Raw Data/DissolvedNutrients_2021.xlsx") %>%
+  filter(site == "Miss Bay") %>%
+  select(site, depth, rep, date, `NO3_mg/L`, `NH4_mg/L`, `PO4_mg/L`) %>%
+  mutate(Date = ymd(date),
+        depth = if_else(depth == "surface", "Surface", depth),
+        depth = if_else(depth == "bottom", "Bottom", depth)) %>%
+  mutate(NO3 = if_else(`NO3_mg/L` < 0, 0, `NO3_mg/L`),
+         NH4 = if_else(`NH4_mg/L`< 0, 0, `NH4_mg/L`),
+         PO4 = if_else(`PO4_mg/L` < 0, 0, `PO4_mg/L`),
+         NO3 = NO3 * 1000,
+         NH4 = NH4 * 1000,
+         PO4 = PO4 * 1000,
+         DIN = NO3 + NH4) %>%
+    na.omit() %>%
+  group_by(site, depth, Date) %>%
+  filter(depth=="Surface") %>%
+  summarize(NH4 = mean(NH4),
+            NO3 = mean(NO3),
+            PO4_S = mean(PO4),
+            DIN_S = mean(DIN)) %>%
+  ungroup() %>%
+  select(DIN_S, PO4_S, Date)
+
+DissNut_B <- read_xlsx("./Raw Data/DissolvedNutrients_2021.xlsx") %>%
+  filter(site == "Miss Bay") %>%
+  select(site, depth, rep, date, `NO3_mg/L`, `NH4_mg/L`, `PO4_mg/L`) %>%
+  mutate(Date = ymd(date),
+        depth = if_else(depth == "surface", "Surface", depth),
+        depth = if_else(depth == "bottom", "Bottom", depth)) %>%
+  mutate(NO3 = if_else(`NO3_mg/L` < 0, 0, `NO3_mg/L`),
+         NH4 = if_else(`NH4_mg/L`< 0, 0, `NH4_mg/L`),
+         PO4 = if_else(`PO4_mg/L` < 0, 0, `PO4_mg/L`),
+         NO3 = NO3 * 1000,
+         NH4 = NH4 * 1000,
+         PO4 = PO4 * 1000,
+         DIN = NO3 + NH4) %>%
+    na.omit() %>%
+  group_by(site, depth, Date) %>%
+  filter(depth=="Bottom") %>%
+  summarize(NH4 = mean(NH4),
+            NO3 = mean(NO3),
+            PO4_B = mean(PO4),
+            DIN_B = mean(DIN)) %>%
+  ungroup() %>%
+  select(DIN_B, PO4_B, Date)
+## Join together. 
+  
+MB_Env_RDA <- full_join(MB_SF_RDA, MB_Wind_RDA) %>%
+  full_join(., MB_WT_RDA) %>%
+  full_join(., MB_SS_RDA) %>%
+  full_join(., DissNut_S) %>%
+  full_join(., DissNut_B) %>%
+  #full_join(., MB_Seston_Matrix) %>%
+  na.omit()
+
+
+MB_Phyto_RDA <- MB_Phyto_Matrix %>%
+  filter(Date %in% MB_Env_RDA$Date) %>%
+  column_to_rownames(var="Date")
+
+MB_Phyto_RDA[is.na(MB_Phyto_RDA)] <- 0
+
+
+MB_Env_RDA <-   MB_Env_RDA %>%
+  rownames_to_column(var="Remove") %>%
+  select(-Remove) %>%
+  column_to_rownames(var="Date")
+```
+
+## Checking for Colinearity in Variables: 
+
+```{r}
+
+library(corrplot)
+
+MB_Corr = cor(MB_Env_RDA)
+corrplot(MB_Corr, method = 'square', type="lower",  addCoef.col = 'black', mar = c(0,0,0,0))
+
+?corrplot
+
+
+cor(MB_Env_RDA$Wind_Speed, MB_Env_RDA$SS)
+```
+Using a threshold of 0.75, we will remove Dissolved inorganic nitrogen in the bottom waters. Though the relationship between wind is really interested. Suggesting internal N loading during low wind. 
+
+
+## Run RDA. 
+
+```{r}
+library(BiodiversityR)
+
+MB_Phyto_RDA <- MB_Phyto_RDA %>%
+  select(-coccoid_cyano, -Gloeotrichia) %>%
+  decostand("hellinger")
+
+MB_Env_RDA <- MB_Env_RDA %>%
+  decostand("standardize") %>%
+  select(Wind_Direction, PO4_B, PO4_S, DIN_S, Sum_SF, Wind_Speed)
+  
+
+
+MB_dbrda <- dbrda(MB_Phyto_RDA ~ .,
+                    data = MB_Env_RDA,
+                  distance="bray")
+
+print(MB_dbrda)
+
+anova.cca(MB_dbrda)
+
+# 0.041 without DIN_B
+#
+
+```
+
+
+Forward selection of the RDA
+
+
+```{r}
+# Initial RDA with ALL of the environmental data
+MB_full <- dbrda(MB_Phyto_RDA ~ .,
+                    data = MB_Env_RDA, 
+                 distance="bray")
+
+MB_null <- dbrda(MB_Phyto_RDA ~ 1, data=MB_Env_RDA, 
+                 distance="bray")
+
+modAIC <- MASS::stepAIC(MB_null,direction='forward', scope = list(lower = MB_null,
+                                                              upper = MB_full))
+
+MB_Mod <- dbrda(MB_Phyto_RDA ~ PO4_S + Temp_C + SS + PO4_B + Wind_Direction, data=MB_Env_RDA, distance="bray")
+
+summary(MB_Mod)
+
+
+```
+After running the forward selection model, bottom orthophosphate levels are the only important variable in Missisquoi Bay in Shaping the cyanobacteria community. 
+
+```{r}
+MB_mod <- dbrda(MB_Phyto_RDA ~ PO4_B, data=MB_Env_RDA, distance="bray")
+
+anova.cca(MB_mod)
+
+
+```
+
+```{r}
+library(BiodiversityR)
+
+MB_mod_summary <- summary(MB_mod)
+
+
+MB_mod_summary$concont
+```
+
+
+```{r}
+
+## This code adds species scores back into the dbrda, since they are always missing. That way we can plot species on our ordination plot with the sites and environmental variables. 
+
+sppscores(MB_mod) <- MB_Phyto_RDA
+
+plot <- ordiplot(MB_mod, type = "point")
+
+```
+
+
+```{r}
+# This code chunk extracts data from the dbRDA
+
+sites.long <- sites.long(plot, env.data=MB_Env_RDA) %>%
+  select(PO4_B, axis1, axis2, labels)
+
+axis.long <- axis.long(MB_mod, choices=c(1, 2))
+
+
+## Edit the species.long dataframe to include a column with abundance, then order abundance, and filter out....keep the top 10 functional groups. 
+
+df <- colSums(MB_Phyto_RDA) %>%
+  as.data.frame() %>%
+  mutate(`.` = abs(`.`))
+
+## Find Top 10 Functional Groups. 
+
+species.long <- species.long(plot)
+species.long
+
+
+vectors.envfit <- envfit(plot, env=MB_Env_RDA)
+vectors.long <- vectorfit.long(vectors.envfit) %>%
+  filter(vector == "PO4_B")
+vectors.long
+
+## Stream Flow is not significant. Everything else is. 
+
+```
+
+Making the plot.
+
+```{r}
+
+MB_RDA <- ggplot() + 
+      geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
+      geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +  
+      xlab(axis.long[1, "label"]) +
+      ylab(axis.long[2, "label"]) +  
+      scale_x_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +
+      scale_y_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +    
+      geom_point(data=sites.long, 
+                 aes(x=axis1, y=axis2), 
+                 size=1) +
+      #geom_point(data=species.long_filt, 
+      #          aes(x=axis1, y=axis2), size=1.5, color="dodgerblue3", alpha=0.6) +
+      geom_text_repel(data=species.long, 
+                    aes(x=axis1*1, y=axis2*1, label=labels),
+                    color="dodgerblue4", size=2) +
+      geom_segment(data=vectors.long,
+                 aes(x=0, y=0, xend=axis1*1, yend=axis2*1), 
+                 colour="black", size=0.5, arrow=arrow(type="open", length=unit(0.15, "cm"))) +
+      geom_text_repel(data=vectors.long, 
+                    aes(x=axis1*1, y=axis2*1, label=vector),
+                    size=2,
+                    colour="black") +
+      ggsci::scale_colour_npg() +
+      theme_classic() +
+      coord_fixed(ratio=1) +
+  ggtitle("A")
+
+
+```
+
+### St. Albans Bay. 
+```{r}
+
+## selecting phytoplankton that are > 5%
+
+SA_Phyto_Date <- Phytos %>%
+  filter(Station == "SA") %>%
+  select(SampleDate) %>%
+  mutate(SampleDate = ymd(SampleDate)) %>%
+  unique()
+  
+SA_Phyto_Keep <- Phytos %>%
+  filter(Station == "SA") %>%
+  group_by(Sample_ID, SampleDate, Genus) %>%
+  summarize(RA_BM = sum(RA_BM)) %>%
+  mutate(Keep = if_else(RA_BM >= 0.05, "Yes", "No")) %>%
+  ungroup() %>%
+  select(Genus, Keep) %>%
+  filter(Keep=="Yes") %>%
+  unique()
+
+SA_Phyto_Matrix <- Phytos %>%
+  filter(Taxonomic_group == "Cyanobacteria") %>%
+  filter(Station == "SA") %>%
+  filter(Genus %in% SA_Phyto_Keep$Genus) %>%
+  select(SampleDate, Genus, BM_ug.L) %>%
+  group_by(SampleDate, Genus) %>%
+  summarise(BM = sum(BM_ug.L)) %>%
+  pivot_wider(names_from = "Genus", values_from="BM") %>%
+  filter(SampleDate > as.Date("2021-06-01")) %>%
+    mutate(SampleDate = ymd(SampleDate)) %>%
+  rename(Date = SampleDate)
+
+SA_Phyto_Matrix[is.na(SA_Phyto_Matrix)] <- 0
+
+SA_Seston_Matrix <- All_Combined %>%
+  select(SestonP_uML, SestonC_uML, SestonN_uML, Station, Date) %>%
+  filter(Station == "SA") %>%
+  unique() %>%
+  mutate(Seston_CP = SestonC_uML/SestonP_uML,
+         Seston_CN = SestonC_uML/SestonN_uML, 
+         Seston_NP = SestonN_uML/SestonP_uML) %>%
+  na.omit() %>%
+  select(-SestonP_uML, -SestonC_uML, -SestonN_uML, -Station) %>%
+  mutate(Date = ymd(Date)) %>%
+    filter(Date %in% SA_Phyto_Date$SampleDate)
+
+## Weather Matrix
+
+SA_Wind_RDA <- SA_Met %>%
+  mutate(Day = day(Datetime)) %>%
+  mutate(Date = make_date(Year, Month, Day)) %>%
+  select(Wind_Speed_m.s, Wind_Dir, Date) %>%
+  filter(Date %in% SA_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(Wind_Speed = mean(Wind_Speed_m.s),
+            Wind_Direction = mean(Wind_Dir))
+
+SA_SS_RDA <- SA_Schmidt %>%
+  select(SS, Date) %>%
+  filter(Date %in% SA_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(SS = mean(SS))
+
+
+# Water Temp
+
+SA_WT_RDA <- SA_Profiler %>%
+  select(Temp_C, Date) %>%
+  filter(Date %in% SA_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(Temp_C = mean(Temp_C))
+
+# Sum Stream Flow
+SA_SF_RDA <- SA_SF_Stats %>%
+  select(Sum_SF, Date) %>%
+  filter(Date %in% SA_Phyto_Date$SampleDate) %>%
+  group_by(Date) %>%
+  summarize(Sum_SF = mean(Sum_SF)) 
+
+## Dissolved Nutrients. 
+
+DissNut_S <- read_xlsx("./Raw Data/DissolvedNutrients_2021.xlsx") %>%
+  filter(site != "Miss Bay") %>%
+  select(site, depth, rep, date, `NO3_mg/L`, `NH4_mg/L`, `PO4_mg/L`) %>%
+  mutate(Date = ymd(date),
+        depth = if_else(depth == "surface", "Surface", depth),
+        depth = if_else(depth == "bottom", "Bottom", depth)) %>%
+  mutate(NO3 = if_else(`NO3_mg/L` < 0, 0, `NO3_mg/L`),
+         NH4 = if_else(`NH4_mg/L`< 0, 0, `NH4_mg/L`),
+         PO4 = if_else(`PO4_mg/L` < 0, 0, `PO4_mg/L`),
+         NO3 = NO3 * 1000,
+         NH4 = NH4 * 1000,
+         PO4 = PO4 * 1000,
+         DIN = NO3 + NH4) %>%
+    na.omit() %>%
+  group_by(site, depth, Date) %>%
+  filter(depth=="Surface") %>%
+  summarize(NH4 = mean(NH4),
+            NO3 = mean(NO3),
+            PO4_S = mean(PO4),
+            DIN_S = mean(DIN)) %>%
+  ungroup() %>%
+  select(DIN_S, PO4_S, Date)
+
+DissNut_B <- read_xlsx("./Raw Data/DissolvedNutrients_2021.xlsx") %>%
+  filter(site != "Miss Bay") %>%
+  select(site, depth, rep, date, `NO3_mg/L`, `NH4_mg/L`, `PO4_mg/L`) %>%
+  mutate(Date = ymd(date),
+        depth = if_else(depth == "surface", "Surface", depth),
+        depth = if_else(depth == "bottom", "Bottom", depth)) %>%
+  mutate(NO3 = if_else(`NO3_mg/L` < 0, 0, `NO3_mg/L`),
+         NH4 = if_else(`NH4_mg/L`< 0, 0, `NH4_mg/L`),
+         PO4 = if_else(`PO4_mg/L` < 0, 0, `PO4_mg/L`),
+         NO3 = NO3 * 1000,
+         NH4 = NH4 * 1000,
+         PO4 = PO4 * 1000,
+         DIN = NO3 + NH4) %>%
+    na.omit() %>%
+  group_by(site, depth, Date) %>%
+  filter(depth=="Bottom") %>%
+  summarize(NH4 = mean(NH4),
+            NO3 = mean(NO3),
+            PO4_B = mean(PO4),
+            DIN_B = mean(DIN)) %>%
+  ungroup() %>%
+  select(DIN_B, PO4_B, Date)
+## Join together. 
+  
+SA_Env_RDA <- full_join(SA_SF_RDA, SA_Wind_RDA) %>%
+  full_join(., SA_WT_RDA) %>%
+  full_join(., SA_SS_RDA) %>%
+  full_join(., DissNut_S) %>%
+  full_join(., DissNut_B) %>%
+  #full_join(., MB_Seston_Matrix) %>%
+  na.omit()
+
+
+SA_Phyto_RDA <- SA_Phyto_Matrix %>%
+  filter(Date %in% SA_Env_RDA$Date) %>%
+  column_to_rownames(var="Date")
+
+SA_Phyto_RDA[is.na(SA_Phyto_RDA)] <- 0
+
+
+SA_Env_RDA <-   SA_Env_RDA %>%
+  rownames_to_column(var="Remove") %>%
+  select(-Remove) %>%
+  column_to_rownames(var="Date")
+```
+
+## Checking for Colinearity in Variables: 
+
+```{r}
+
+library(corrplot)
+
+SA_Corr = cor(SA_Env_RDA)
+corrplot(SA_Corr, method = 'number')
+
+cor(SA_Env_RDA$Wind_Speed, SA_Env_RDA$SS)
+
+```
+
+
+## Run RDA. 
+
+```{r}
+library(BiodiversityR)
+
+SA_Phyto_RDA <- SA_Phyto_RDA %>%
+  decostand("hellinger")
+
+SA_Env_RDA <- SA_Env_RDA %>%
+  decostand("standardize") %>%
+  select(-PO4_B)
+
+
+SA_dbrda <- dbrda(SA_Phyto_RDA ~ .,
+                    data = SA_Env_RDA,
+                  distance="bray")
+
+print(SA_dbrda)
+
+anova.cca(SA_dbrda)
+
+# 0.014 without PO4_B
+# 0.018 with PO4_B, but the formula does not include PO4_B so it will remain omitted. 
+```
+
+
+Forward selection of the RDA
+
+
+```{r}
+# Initial RDA with ALL of the environmental data
+SA_full <- dbrda(SA_Phyto_RDA ~ .,
+                    data = SA_Env_RDA, 
+                 distance="bray")
+
+SA_null <- dbrda(SA_Phyto_RDA ~ 1, data=SA_Env_RDA, 
+                 distance="bray")
+
+modAIC <- MASS::stepAIC(SA_null,direction='forward', scope = list(lower = SA_null,
+                                                              upper = SA_full))
+
+
+SA_mod <- dbrda(SA_Phyto_RDA ~ DIN_S + DIN_B + Wind_Direction + Wind_Speed + 
+    Temp_C + Sum_SF + PO4_S + SS, 
+                data=SA_Env_RDA, distance="bray")
+
+print(SA_mod)
+
+anova.cca(SA_mod)
+
+```
+
+
+```{r}
+library(BiodiversityR)
+
+SA_mod_summary <- summary(SA_mod)
+
+SA_mod_summary$concont
+
+```
+
+
+```{r}
+
+## This code adds species scores back into the dbrda, since they are always missing. That way we can plot species on our ordination plot with the sites and environmental variables. 
+
+sppscores(SA_mod) <- SA_Phyto_RDA
+
+plot <- ordiplot(SA_mod, type = "point")
+
+```
+
+
+```{r}
+# This code chunk extracts data from the dbRDA
+
+sites.long <- sites.long(plot, env.data=SA_Env_RDA)
+
+axis.long <- axis.long(SA_mod, choices=c(1, 2))
+
+
+## Edit the species.long dataframe to include a column with abundance, then order abundance, and filter out....keep the top 10 functional groups. 
+
+df <- colSums(SA_Phyto_RDA) %>%
+  as.data.frame() %>%
+  mutate(`.` = abs(`.`))
+
+## Find Top 10 Functional Groups. 
+
+species.long <- species.long(plot)
+species.long
+
+
+vectors.envfit <- envfit(plot, env=SA_Env_RDA)
+vectors.long <- vectorfit.long(vectors.envfit)
+vectors.long
+
+## Stream Flow is not significant. Everything else is. 
+
+```
+
+Making the plot.
+
+```{r}
+
+
+SA_RDA <- ggplot() + 
+      geom_vline(xintercept = c(0), color = "grey70", linetype = 2) +
+      geom_hline(yintercept = c(0), color = "grey70", linetype = 2) +  
+      xlab(axis.long[1, "label"]) +
+      ylab(axis.long[2, "label"]) +  
+      scale_x_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +
+      scale_y_continuous(sec.axis = dup_axis(labels=NULL, name=NULL)) +    
+      geom_point(data=sites.long, 
+                 aes(x=axis1, y=axis2), 
+                 size=1) +
+      #geom_point(data=species.long_filt, 
+      #          aes(x=axis1, y=axis2), size=1.5, color="dodgerblue3", alpha=0.6) +
+      geom_text_repel(data=species.long, 
+                    aes(x=axis1*1, y=axis2*1, label=labels),
+                    color="dodgerblue4", size=2) +
+      geom_segment(data=vectors.long,
+                 aes(x=0, y=0, xend=axis1*1, yend=axis2*1), 
+                 colour="black", size=0.5, arrow=arrow(type="open", length=unit(0.15, "cm"))) +
+      geom_text_repel(data=vectors.long, 
+                    aes(x=axis1*1, y=axis2*1, label=vector),
+                    size=2,
+                    colour="black") +
+      ggsci::scale_colour_npg() +
+      theme_classic() +
+      coord_fixed(ratio=1) +
+  ggtitle("B")
+
+
+```
+
+
+
+
+
+
+################################################################################
+# Dissolved Nutrient Analysis Figures
+
+Now I am going to make similar figures as shown in the seston nutrient limitation figures, to corroborate the story with the dissolved nutrients.
+
+To do so, we need to join the Dissolved Nutrients with Total Nutrients and Toxins. 
+
+1. Rerun reading and cleaning the data in the CNP Analaysis Clean Sheet
+2. Join Separate Dataframes here
+3. Make each Figure
+4. Print the figure in the Second Analysis Figs R. Sheet.
+
+Dataframes: 
+- Toxins
+- Water_TNTP
+
+```{r}
+DissNut <- read_xlsx("./Raw Data/DissolvedNutrients_2021.xlsx") %>%
+  select(site, depth, rep, date, `NO3_mg/L`, `NH4_mg/L`, `PO4_mg/L`) %>%
+  mutate(date = ymd(date),
+        depth = if_else(depth == "surface", "Surface", depth),
+        depth = if_else(depth == "bottom", "Bottom", depth)) %>%
+  mutate(NO3 = if_else(`NO3_mg/L` < 0, 0, `NO3_mg/L`),
+         NH4 = if_else(`NH4_mg/L`< 0, 0, `NH4_mg/L`),
+         PO4 = if_else(`PO4_mg/L` < 0, 0, `PO4_mg/L`),
+         NO3 = NO3 * 1000,
+         NH4 = NH4 * 1000,
+         PO4 = PO4 * 1000,
+         DIN = NO3 + NH4) %>%
+    na.omit() %>%
+  group_by(site, depth, date) %>%
+  summarize(NH4 = mean(NH4),
+            NO3 = mean(NO3),
+            PO4 = mean(PO4),
+            DIN = mean(DIN))
+
+Water_TNTP <- read_csv("./Raw Data/LG21_Summer_TN-TP_BREE_Clean.csv") %>%
+  mutate(site = if_else(Site == "Miss Bay", "Miss Bay", "STA Inner"),
+         date = mdy(Date),
+         depth = if_else(Location == "surface", "Surface", "Bottom")) %>%
+ # filter(`TP_(uMol/L)` < 13 & `TP_(uMol/L)` > 0) %>%
+  group_by(date, site, depth) %>%
+  summarize(Water_TN_uML= mean(`TN_(uMol/L)`),
+            Water_TP_uML = mean(`TP_(uMol/L)`),
+            Water_TN_mgL = mean(`TN_mg/L`), 
+            Water_TP_mgL = mean(`TP_mg/L`),
+            TN = Water_TN_mgL * 1000,
+            TP = Water_TP_mgL * 1000)
+
+
+Nut <- full_join(DissNut, Water_TNTP) %>%
+  na.omit()
+
+Toxins <- read.csv("./Raw Data/Toxins_SAMB2021_Clean.csv") %>%
+  mutate(Microcystin = if_else(is.na(Microcystin), 0, Microcystin),
+         Anatoxin = if_else(is.na(Anatoxin), 0, Anatoxin),
+         depth = "IWC") %>%
+  select(-Cylindrospermopsin, -SampleID) %>%
+  mutate(date = mdy(Date)) %>%
+  mutate(site = if_else(Station == "MB", "Miss Bay", "STA Inner")) %>%
+  mutate(Toxin = if_else(Microcystin > 0 & Anatoxin == 0, "MC", "None"), 
+         Toxin = if_else(Anatoxin > 0 & Microcystin == 0, "ATX", Toxin),
+         Toxin = if_else(Anatoxin > 0 & Microcystin > 0, "Both", Toxin)) %>%
+  select(-Station, -Date, -Anatoxin, -Microcystin, -depth)
+
+Nut_Toxins <- full_join(Nut, Toxins)
+
+```
+
+Again, the requirements for limitation are: 
+
+## Qualifications for N Limitation: 
+# DIN < 100ug/L and DIN:TP < 1.6
+
+## Qualifications for P limitation: 
+# DIP < 10ug/L and DIN:TP >= 1.6
+
+
+Dissolved Nitrogen: 
+```{r}
+DN_DIN <- Nut_Toxins %>%
+  filter(depth == "Surface") %>%
+  ggplot(aes(x=as.Date(date), y=DIN)) +
+  annotate("text", x = as.Date("2021-06-07"), y = 1500, label = "N-Replete", size = 1.5, color="dodgerblue4") +
+  annotate("text", x = as.Date("2021-06-07"), y = -50, label = "N-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 100, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(linetype=site)) +
+  geom_point(aes(color=Toxin), size=0.75) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black")) +
+  theme_classic() +
+  ylab("Dissolved Inorganic Nitrogen (ug/L)") +
+  xlab("Date") +
+  ggtitle("D") +
+  ylim(-50,1500)+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6))+
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+```
+
+Dissolved Phosphorus: 
+```{r}
+DN_DIP <- Nut_Toxins %>%
+  filter(depth == "Surface") %>%
+  ggplot(aes(x=as.Date(date), y=PO4)) +
+  annotate("text", x = as.Date("2021-06-07"), y = 20, label = "P-Replete", size = 1.5, color="dodgerblue4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 9.5, label = "P-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 10, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(linetype=site)) +
+  geom_point(aes(color=Toxin), size=0.75) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black")) +
+  theme_classic() +
+  ylab("Dissolved Inorganic Phosphorus (ug/L)") +
+  xlab("Date") +
+  ylim(0,20)+
+  ggtitle("E")
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6))+
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+```
+
+DIN/TP Ratios: 
+```{r}
+
+DN_DIN.TP <- Nut_Toxins %>%
+  filter(depth == "Surface") %>%
+  mutate(DIN.TP = DIN/TP) %>%
+  ggplot(aes(x=as.Date(date), y=DIN.TP)) +
+  annotate("text", x = as.Date("2021-06-07"), y = 140, label = "P-Deplete", size = 1.5, color="indianred4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 0.5, label = "N-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 1.6, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(linetype=site)) +
+  geom_point(aes(color=Toxin), size=0.75) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black")) +
+  theme_classic() +
+  ylab("DIN:TP") +
+  xlab("Date") +
+  ggtitle("F")+
+  ylim(0,105)+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6))+
+   scale_y_continuous(trans='log2', limits = c(0.3, 150), breaks=c(0.5, 1, 1.6, 5, 10, 25, 50, 100)) +
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+
+```
+
+## Bottom Nutrients: 
+
+Dissolved Nitrogen: 
+```{r}
+DN_DIN_B <- Nut_Toxins %>%
+  filter(depth == "Bottom") %>%
+  ggplot(aes(x=as.Date(date), y=DIN)) +
+  annotate("text", x = as.Date("2021-06-07"), y = 2000, label = "N-Replete", size = 1.5, color="dodgerblue4") +
+  annotate("text", x = as.Date("2021-06-07"), y = -50, label = "N-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 100, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(linetype=site)) +
+  geom_point(aes(color=Toxin), size=0.75) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black")) +
+  theme_classic() +
+  ylab("Dissolved Inorganic Nitrogen (ug/L)") +
+  xlab("") +
+  ylim(-50,2000)+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6))+
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+```
+
+Dissolved Phosphorus: 
+```{r}
+DN_DIP_B <- Nut_Toxins %>%
+  filter(depth == "Bottom") %>%
+  ggplot(aes(x=as.Date(date), y=PO4)) +
+  annotate("text", x = as.Date("2021-06-07"), y = 12, label = "P-Replete", size = 1.5, color="dodgerblue4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 9.5, label = "P-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 10, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(linetype=site)) +
+  geom_point(aes(color=Toxin), size=0.75) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black")) +
+  theme_classic() +
+  ylab("Dissolved Inorganic Phosphorus (ug/L)") +
+  xlab("") +
+  ylim(0,12)+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6))+
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+```
+
+DIN/TP Ratios: 
+```{r}
+
+DN_DIN.TP_B <- Nut_Toxins %>%
+  filter(depth == "Bottom") %>%
+  mutate(DIN.TP = DIN/TP) %>%
+  ggplot(aes(x=as.Date(date), y=DIN.TP)) +
+  annotate("text", x = as.Date("2021-06-07"), y = 75, label = "P-Deplete", size = 1.5, color="indianred4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 0.5, label = "N-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 1.6, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(linetype=site)) +
+  geom_point(aes(color=Toxin), size=0.75) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black")) +
+  theme_classic() +
+  ylab("DIN:TP") +
+  xlab("Date") +
+  ylim(0,105)+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6))+
+  scale_y_continuous(trans='log2', limits = c(0.1, 75), breaks=c(0.1, 0.5, 1, 1.6, 5, 10, 25, 75)) +
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+
+```
+
+
+
+```{r}
+
+DN_DIN <- Nut_Toxins %>%
+  ggplot() +
+  annotate("text", x = as.Date("2021-06-07"), y = 2000, label = "N-Replete", size = 1.5, color="dodgerblue4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 3, label = "N-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 100, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(x = as.Date(date), y = DIN, linetype=site, group = interaction(depth, site)), size = 0.5) + 
+  geom_point(aes(x = as.Date(date), y = DIN,  shape=depth, fill=Toxin, color=Toxin, group= interaction(depth, site)), size=0.75) +
+  scale_shape_manual(values=c(21, 22))+
+  scale_fill_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black", "grey")) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black", "grey")) +
+  theme_classic() +
+  ylab(expression(paste("DIN (",~ mu, "g/L)"))) +
+  xlab("") +
+  ggtitle("D")+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6),
+       plot.margin = unit(c(0, 0.05, 0, 0.05), 'in'))+
+    scale_y_continuous(trans='log2', limits = c(3, 2000), breaks=c(3, 25, 50, 100, 250, 500, 1000, 2000)) +
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+
+DN_PO4 <- Nut_Toxins %>%
+  ggplot() +
+  annotate("text", x = as.Date("2021-06-07"), y = 20, label = "P-Replete", size = 1.5, color="dodgerblue4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 8, label = "P-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 10, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(x = as.Date(date), y = PO4, linetype=site, group = interaction(depth, site)), size = 0.5) + 
+  geom_point(aes(x = as.Date(date), y = PO4,  shape=depth, fill=Toxin, color=Toxin, group= interaction(depth, site)), size=0.75) +
+  scale_shape_manual(values=c(21, 22))+
+  scale_fill_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black", "grey")) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black", "grey")) +
+  theme_classic() +
+  ylab(expression(paste("PO4 (",~ mu, "g/L)"))) +
+  xlab("") +
+  ggtitle("E")+
+  ylim(0,20)+
+  theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6),
+       plot.margin = unit(c(0, 0.05, 0, 0.05), 'in'))+
+  scale_y_continuous(trans='log2', limits = c(0.1, 20), breaks=c(0.1, 0.5, 1, 2, 3, 4, 5, 10, 20)) +
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+
+DN_DIN.TP <- Nut_Toxins %>%
+  mutate(DIN.TP = DIN/TP) %>%
+  ggplot() +
+  annotate("text", x = as.Date("2021-06-07"), y = 75, label = "P-Deplete", size = 1.5, color="indianred4") +
+  annotate("text", x = as.Date("2021-06-07"), y = 0.5, label = "N-Deplete", size = 1.5, color="indianred4") +
+  geom_hline(yintercept = 1.6, linetype=3, color="black", linewidth=0.25) +
+  geom_line(aes(x = as.Date(date), y = DIN.TP, linetype=site, group = interaction(depth, site)), size = 0.5) + 
+  geom_point(aes(x = as.Date(date), y = DIN.TP,  shape=depth, fill=Toxin, color=Toxin, group= interaction(depth, site)), size=0.75) +
+  scale_shape_manual(values=c(21, 22))+
+  scale_fill_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black", "grey")) +
+  scale_color_manual(values=c("orangered3", "darkmagenta", "dodgerblue3", "black", "grey")) +
+  theme_classic() +
+  ylab("DIN:TP") +
+  xlab("") +
+  ggtitle("F")+
+  ylim(0,105)+
+ theme(axis.title = element_text(size=7), axis.text=element_text(size=6),
+        plot.title = element_text(size=7), 
+        legend.position="bottom",
+        legend.title = element_text(size = 7), 
+        legend.key.size = unit(0.05, 'in'), legend.text = element_text(size=6),
+        plot.margin = unit(c(0, 0.05, 0, 0.05), 'in'))+
+  scale_y_continuous(trans='log2', limits = c(0.1, 75), breaks=c(0.1, 0.5, 1, 1.6, 5, 10, 25, 75)) +
+  scale_x_date(breaks = scales::breaks_pretty(6), limits = c(as.Date("2021-06-01"), as.Date("2021-10-31")))
+
+```
+
+
+# Phytoplankton Data Preparation: 
+
+The following code chunk is organizing phytoplankton data for the creation of Figure 6. Corresponds to Lines ____ in 'ManuscriptFigures' Script.
+
+```{r}
+
+Phytos <- read_csv("./Clean Data/Warner_etal_Disturbance_PhytoplanktonBV.csv") %>%
+  #filter(Taxonomic_group == "Cyanobacteria") %>%
+  select(Sample_ID, SampleDate, Genus, species, BM_ug.L, RA_BM, Taxonomic_group) %>%
+  mutate(SampleDate = if_else(Sample_ID == "IP21_074_SA", as.Date("2021-08-26"), SampleDate),
+         SampleDate = if_else(Sample_ID == "IP21_065_SA", as.Date("2021-08-13"), SampleDate)) %>%
+  mutate(Date = SampleDate) %>%
+  mutate(Station = if_else(grepl("MB", Sample_ID), "MB", "SA"))
+
+## Unqiue Genera
+
+SA21_Genus <- Phytos %>%
+  filter(Station == "SA") %>%
+  select(Genus) %>%
+  unique()
+
+MB21_Genus <- Phytos %>%
+  filter(Station == "MB") %>%
+  select(Genus) %>%
+  unique()
+
+## 10% Greater BV. 
+SA_Phyto_Keep <- Phytos %>%
+  filter(Station == "SA") %>%
+  group_by(Sample_ID, SampleDate, Genus) %>%
+  summarize(RA_BM = sum(RA_BM)) %>%
+  mutate(Keep = if_else(RA_BM >= 0.10, "Yes", "No")) %>%
+  ungroup() %>%
+  select(Genus, Keep) %>%
+  filter(Keep=="Yes") %>%
+  unique()
+
+
+SA21_Phyto <- Phytos %>%
+  filter(Station == "SA") %>%
+  mutate(Algal_Group = if_else(Taxonomic_group == "Cyanobacteria"& !(Genus %in% SA_Phyto_Keep$Genus),  "Other Cyanobacteria", Taxonomic_group),
+         Algal_Group = if_else(Taxonomic_group == "Cyanobacteria" & (Genus %in% SA_Phyto_Keep$Genus), Genus, Algal_Group),
+         Algal_Group = if_else(Genus == "Aulacoseira", Genus, Algal_Group),
+         Algal_Group = if_else(Taxonomic_group == "Bacillariophyta" & Genus != "Aulacoseira", "Other Bacillariophyta", Algal_Group)) %>%
+  select(SampleDate, Algal_Group, BM_ug.L) %>%
+  group_by(SampleDate, Algal_Group) %>%
+  summarise(BM = sum(BM_ug.L)) %>%
+  filter(SampleDate > as.Date("2021-06-01")) %>%
+  rename(Date = SampleDate) %>%
+  group_by(Date) %>%
+  arrange(desc(BM))
+
+
+## Missisquoi Bay: 
+
+MB_Phyto_Keep <- Phytos %>%
+  filter(Station == "MB") %>%
+  group_by(Sample_ID, SampleDate, Genus) %>%
+  summarize(RA_BM = sum(RA_BM)) %>%
+  mutate(Keep = if_else(RA_BM >= 0.10, "Yes", "No")) %>%
+  ungroup() %>%
+  select(Genus, Keep) %>%
+  filter(Keep=="Yes") %>%
+  unique()
+
+
+MB21_Phyto <- Phytos %>%
+  filter(Station == "MB") %>%
+  mutate(Algal_Group = if_else(Taxonomic_group == "Cyanobacteria"& !(Genus %in% SA_Phyto_Keep$Genus),  "Other Cyanobacteria", Taxonomic_group),
+         Algal_Group = if_else(Taxonomic_group == "Cyanobacteria" & (Genus %in% SA_Phyto_Keep$Genus), Genus, Algal_Group),
+         Algal_Group = if_else(Genus == "Aulacoseira", Genus, Algal_Group),
+         Algal_Group = if_else(Taxonomic_group == "Bacillariophyta" & Genus != "Aulacoseira", "Other Bacillariophyta", Algal_Group)) %>%
+  select(SampleDate, Algal_Group, BM_ug.L) %>%
+  group_by(SampleDate, Algal_Group) %>%
+  summarise(BM = sum(BM_ug.L)) %>%
+  filter(SampleDate > as.Date("2021-06-01")) %>%
+  rename(Date = SampleDate) %>%
+  group_by(Date) %>%
+  arrange(desc(BM))
+
+
+```
+
+# Addressing Collaborator Questions: 
+
+When did each bay hit 21 C? Did one bay warm up faster than another?
+
+```{r}
+MB_Profiler %>%
+  filter(Depth == 0.5 | Depth == 1.0) %>%
+  filter(Temp_C >= 25)
+
+
+SA_Profiler %>%
+  filter(Depth == 0.5 | Depth == 1.0) %>%
+  filter(Temp_C >= 25)
+```
+
+
+Running Citations for R Packages: 
+
+```{r}
+citation("MASS")
+citation("stats")
+citation("factoextra")
+citation("rLakeAnalyzer")
+
+```
+
+
